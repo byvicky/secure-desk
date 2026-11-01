@@ -1,6 +1,7 @@
 const form=document.querySelector("#ticket-form"),message=document.querySelector("#form-message"),list=document.querySelector("#ticket-list");
 const loginPanel=document.querySelector("#login-panel"),loginForm=document.querySelector("#login-form"),loginMessage=document.querySelector("#login-message"),logoutButton=document.querySelector("#logout");
-let csrfToken="";\nconst priorities={critica:"Crítica",alta:"Alta",media:"Média",baixa:"Baixa"},categories={acesso:"Acesso",hardware:"Hardware",software:"Software",rede:"Rede",seguranca:"Segurança",outro:"Outro"};
+let csrfToken="";
+const priorities={critica:"Crítica",alta:"Alta",media:"Média",baixa:"Baixa"},categories={acesso:"Acesso",hardware:"Hardware",software:"Software",rede:"Rede",seguranca:"Segurança",outro:"Outro"};
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function showLogin(show){loginPanel.hidden=!show;document.querySelector(".shell").hidden=show;}
 async function checkSession(){try{const res=await fetch("/api/session");const data=await res.json();csrfToken=data.csrf_token||"";showLogin(!data.authenticated);if(data.authenticated)await load();}catch{showLogin(true);loginMessage.textContent="Não foi possível conectar ao servidor.";}}
