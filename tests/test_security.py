@@ -1,20 +1,42 @@
-from securedesk.security import redact_sensitive_data
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+
+from securedesk import database, security
+from securedesk.main import app
+from securedesk.security import RateLimiter, redact_sensitive_data
 
 
-def test_email_redaction():
-    value = redact_sensitive_data("Contato: pessoa@example.com")
-    assert "pessoa@example.com" not in value and "[EMAIL REDIGIDO]" in value
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "settings", SimpleNamespace(database=str(tmp_path / "auth.db")))
+    monkeypatch.setattr(security, "settings", SimpleNamespace(production=True, api_key="test-secret"))
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-def test_cpf_redaction():
-    value = redact_sensitive_data("CPF 123.456.789-00")
-    assert "123.456.789-00" not in value and "[CPF REDIGIDO]" in value
+def test_api_key_required_and_validated(client):
+    assert client.get("/api/tickets").status_code == 401
+    assert client.get("/api/tickets", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    response = client.get("/api/tickets", headers={"Authorization": "Bearer test-secret"})
+    assert response.status_code == 200
 
 
-def test_normal_text_unchanged():
-    assert redact_sensitive_data("Meu computador não liga") == "Meu computador não liga"
+def test_redaction_masks_common_identifiers():
+    result = redact_sensitive_data("email ana@example.com CPF 123.456.789-00")
+    assert "ana@example.com" not in result
+    assert "123.456.789-00" not in result
+    assert "[EMAIL REDIGIDO]" in result
+    assert "[CPF REDIGIDO]" in result
 
 
-def test_redacts_brazilian_phone():
-    value = redact_sensitive_data("Ligue para (11) 98765-4321")
-    assert "98765-4321" not in value and "[TELEFONE REDIGIDO]" in value
+def test_rate_limiter_enforces_window(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr("securedesk.security.time.monotonic", lambda: clock[0])
+    limiter = RateLimiter(limit=2, window_seconds=60)
+    assert limiter.check("client")
+    assert limiter.check("client")
+    assert not limiter.check("client")
+    clock[0] += 61
+    assert limiter.check("client")

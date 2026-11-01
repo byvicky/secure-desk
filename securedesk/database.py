@@ -36,6 +36,8 @@ def initialize():
         );
         CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
         CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority);
+        CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category);
+        CREATE INDEX IF NOT EXISTS idx_audit_ticket_id ON audit_events(ticket_id, id);
         """)
 
 
@@ -53,12 +55,21 @@ def create_ticket(data: dict[str, Any]) -> dict[str, Any]:
         return dict(db.execute("SELECT * FROM tickets WHERE id=?", (ident,)).fetchone())
 
 
-def list_tickets(limit: int = 50):
+def list_tickets(limit: int = 50, status: str | None = None,
+                 category: str | None = None, priority: str | None = None):
+    clauses = []
+    values: list[Any] = []
+    for column, value in (("status", status), ("category", category), ("priority", priority)):
+        if value is not None:
+            clauses.append(f"{column}=?")
+            values.append(value)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    values.append(limit)
     with connect() as db:
         return [
             dict(row)
             for row in db.execute(
-                "SELECT * FROM tickets ORDER BY created_at DESC,id DESC LIMIT ?", (limit,)
+                f"SELECT * FROM tickets {where} ORDER BY created_at DESC,id DESC LIMIT ?", values
             ).fetchall()
         ]
 

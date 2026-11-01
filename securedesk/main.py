@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from securedesk import database
 from securedesk.config import settings
-from securedesk.schemas import TicketCreate, TicketOut, TicketUpdate
+from securedesk.schemas import Category, Priority, Status, TicketCreate, TicketOut, TicketUpdate
 from securedesk.security import RateLimiter, redact_sensitive_data, verify_api_key
 from securedesk.triage import analyze
 
@@ -97,8 +97,13 @@ def submit_ticket(payload: TicketCreate):
 
 
 @app.get("/api/tickets", response_model=list[TicketOut], dependencies=[Depends(verify_api_key)])
-def tickets(limit: int = Query(default=50, ge=1, le=100)):
-    return database.list_tickets(limit)
+def tickets(
+    limit: int = Query(default=50, ge=1, le=100),
+    status_filter: Status | None = Query(default=None, alias="status"),
+    category: Category | None = None,
+    priority: Priority | None = None,
+):
+    return database.list_tickets(limit, status_filter, category, priority)
 
 
 @app.get("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(verify_api_key)])
