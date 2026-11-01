@@ -41,7 +41,8 @@ O SecureDesk busca:
 | Proteção de dados | Mascara e-mail, CPF e telefone reconhecidos antes de salvar. |
 | Validação | Rejeita campos inválidos e propriedades inesperadas. |
 | API autenticável | Suporta chave Bearer e sessão web assinada no servidor. |
-| Login individual | Contas próprias com senha armazenada por hash PBKDF2 e sessão em cookie HttpOnly. |\n| Perfis de acesso | Perfis admin e agent; somente administradores gerenciam usuários. |
+| Login individual | Contas próprias com senha armazenada por hash PBKDF2 e sessão em cookie HttpOnly. |
+| Perfis de acesso | Perfis admin e agent; somente administradores gerenciam usuários. |
 | Limite de requisições | Aplica rate limiting básico por endereço de origem. |
 | Auditoria | Registra criação e mudanças de status. |
 | Interface web | Permite registrar e acompanhar chamados em uma interface responsiva. |
