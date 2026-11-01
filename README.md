@@ -142,7 +142,7 @@ Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PAS
 
 ### Limitações conhecidas
 
-Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários recuperação e desativação de contas, auditoria vinculada ao usuário, armazenamento distribuído do rate limiter, HTTPS por proxy e revisão antes de uso real.
+Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários recuperação e desativação de contas, notificações, armazenamento distribuído do rate limiter, HTTPS por proxy e revisão antes de uso real.
 
 ## ✦ Testes
 
@@ -160,7 +160,7 @@ pytest
 - [x] Autenticação individual e perfis básicos de acesso.
 - [ ] Integração opcional com LLM usando minimização de dados.
 - [ ] Histórico detalhado e filtros na interface.
-- [x] Testes de integração, navegador e análise estática no CI.\n- [x] Limitação básica de tentativas de login e proteção CSRF para sessões web.
+- [x] Testes de integração, navegador e análise estática no CI.\n- [x] Limitação básica de tentativas de login e proteção CSRF para sessões web.\n- [x] Atribuição de chamados a usuários ativos.\n- [x] Comentários por chamado.\n- [x] Histórico de auditoria com identificação do usuário que realizou a ação.
 - [ ] Revisão de segurança e documentação de implantação.
 
 ---
