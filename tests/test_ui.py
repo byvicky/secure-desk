@@ -43,7 +43,8 @@ def test_filters_change_the_visible_tickets(page: Page):
     open_title = f"Chamado aberto {suffix}"
     resolved_title = f"Chamado resolvido {suffix}"
 
-    csrf_token = page.evaluate("() => window.secureDeskCsrfToken || \u0027\u0027")\n    for title, status in ((open_title, "aberto"), (resolved_title, "resolvido")):
+    csrf_token = page.evaluate("() => window.secureDeskCsrfToken || \u0027\u0027")
+    for title, status in ((open_title, "aberto"), (resolved_title, "resolvido")):
         response = page.request.post(
             f"{BASE_URL}/api/tickets",
             data={
@@ -57,7 +58,8 @@ def test_filters_change_the_visible_tickets(page: Page):
             ticket_id = response.json()["id"]
             update = page.request.patch(
                 f"{BASE_URL}/api/tickets/{ticket_id}",
-                headers={"X-CSRF-Token": csrf_token},\n                data={"status": "resolvido"},
+                headers={"X-CSRF-Token": csrf_token},
+                data={"status": "resolvido"},
             )
             assert update.status == 200, update.text()
 
