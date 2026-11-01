@@ -18,7 +18,6 @@ def connect():
 
 @contextmanager
 def get_db():
-    """Manage a SQLite transaction and always close its connection."""
     db = connect()
     try:
         with db:
@@ -30,6 +29,14 @@ def get_db():
 def initialize():
     with get_db() as db:
         db.executescript("""
+        CREATE TABLE IF NOT EXISTS users(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('admin','agent')),
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+        );
         CREATE TABLE IF NOT EXISTS tickets(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             requester TEXT NOT NULL,
@@ -53,6 +60,42 @@ def initialize():
         """)
 
 
+def create_user(username: str, password_hash: str, role: str = "agent") -> dict[str, Any]:
+    with get_db() as db:
+        cur = db.execute(
+            "INSERT INTO users(username,password_hash,role) VALUES(?,?,?)",
+            (username, password_hash, role),
+        )
+        return dict(db.execute(
+            "SELECT id,username,role,active,created_at FROM users WHERE id=?", (cur.lastrowid,)
+        ).fetchone())
+
+
+def ensure_bootstrap_admin(username: str, password_hash: str):
+    if not username or not password_hash:
+        return
+    with get_db() as db:
+        exists = db.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()
+        if not exists:
+            db.execute(
+                "INSERT INTO users(username,password_hash,role) VALUES(?,?, 'admin')",
+                (username, password_hash),
+            )
+
+
+def get_user_by_username(username: str):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM users WHERE username=? COLLATE NOCASE", (username,)).fetchone()
+        return dict(row) if row else None
+
+
+def list_users():
+    with get_db() as db:
+        return [dict(row) for row in db.execute(
+            "SELECT id,username,role,active,created_at FROM users ORDER BY id"
+        ).fetchall()]
+
+
 def create_ticket(data: dict[str, Any]) -> dict[str, Any]:
     with get_db() as db:
         cur = db.execute(
@@ -60,10 +103,7 @@ def create_ticket(data: dict[str, Any]) -> dict[str, Any]:
             (data["requester"], data["title"], data["description"], data["category"], data["priority"]),
         )
         ident = cur.lastrowid
-        db.execute(
-            "INSERT INTO audit_events(ticket_id,event) VALUES(?,?)",
-            (ident, "Solicitação registrada"),
-        )
+        db.execute("INSERT INTO audit_events(ticket_id,event) VALUES(?,?)", (ident, "Solicitação registrada"))
         return dict(db.execute("SELECT * FROM tickets WHERE id=?", (ident,)).fetchone())
 
 
@@ -78,12 +118,9 @@ def list_tickets(limit: int = 50, status: str | None = None,
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     values.append(limit)
     with get_db() as db:
-        return [
-            dict(row)
-            for row in db.execute(
-                f"SELECT * FROM tickets {where} ORDER BY created_at DESC,id DESC LIMIT ?", values
-            ).fetchall()
-        ]
+        return [dict(row) for row in db.execute(
+            f"SELECT * FROM tickets {where} ORDER BY created_at DESC,id DESC LIMIT ?", values
+        ).fetchall()]
 
 
 def get_ticket(ticket_id: int):
@@ -97,20 +134,14 @@ def update_status(ticket_id: int, new_status: str):
         cur = db.execute("UPDATE tickets SET status=? WHERE id=?", (new_status, ticket_id))
         if not cur.rowcount:
             return None
-        db.execute(
-            "INSERT INTO audit_events(ticket_id,event) VALUES(?,?)",
-            (ticket_id, f"Status alterado para {new_status}"),
-        )
+        db.execute("INSERT INTO audit_events(ticket_id,event) VALUES(?,?)",
+                   (ticket_id, f"Status alterado para {new_status}"))
         return dict(db.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone())
 
 
 def get_ticket_history(ticket_id: int):
     with get_db() as db:
-        return [
-            dict(row)
-            for row in db.execute(
-                "SELECT id, ticket_id, event, created_at FROM audit_events "
-                "WHERE ticket_id=? ORDER BY id DESC",
-                (ticket_id,),
-            ).fetchall()
-        ]
+        return [dict(row) for row in db.execute(
+            "SELECT id, ticket_id, event, created_at FROM audit_events WHERE ticket_id=? ORDER BY id DESC",
+            (ticket_id,),
+        ).fetchall()]
