@@ -47,6 +47,7 @@ def test_filters_change_the_visible_tickets(page: Page):
     for title, status in ((open_title, "aberto"), (resolved_title, "resolvido")):
         response = page.request.post(
             f"{BASE_URL}/api/tickets",
+            headers={"X-CSRF-Token": csrf_token},
             data={
                 "requester": "Teste Playwright",
                 "title": title,
