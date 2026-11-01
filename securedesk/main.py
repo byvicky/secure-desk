@@ -1,4 +1,5 @@
 import logging
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -7,6 +8,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+from starlette.middleware.sessions import SessionMiddleware
 
 from securedesk import database
 from securedesk.config import settings
@@ -17,6 +20,10 @@ from securedesk.triage import analyze
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("securedesk")
 limiter = RateLimiter(settings.rate_limit)
+
+
+class LoginRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
 
 
 @asynccontextmanager
@@ -32,6 +39,14 @@ app = FastAPI(
     docs_url=None if settings.production else "/docs",
     redoc_url=None if settings.production else "/redoc",
     lifespan=lifespan,
+)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret or "development-session-secret-change-me",
+    session_cookie="securedesk_session",
+    max_age=8 * 60 * 60,
+    same_site="strict",
+    https_only=settings.production,
 )
 app.mount("/static", StaticFiles(directory="web"), name="static")
 
@@ -77,10 +92,37 @@ def health():
     return {"status": "ok", "service": "SecureDesk"}
 
 
+@app.get("/api/session")
+def session_status(request: Request):
+    return {"authenticated": bool(request.session.get("authenticated"))}
+
+
+@app.post("/api/login")
+def login(payload: LoginRequest, request: Request):
+    if not settings.web_password or not settings.session_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Login web não configurado no servidor.",
+        )
+    origin = request.headers.get("origin")
+    if origin and origin != f"{request.url.scheme}://{request.url.netloc}":
+        raise HTTPException(status_code=403, detail="Origem da solicitação inválida.")
+    if not secrets.compare_digest(payload.password, settings.web_password):
+        raise HTTPException(status_code=401, detail="Senha incorreta.")
+    request.session.clear()
+    request.session["authenticated"] = True
+    return {"authenticated": True}
+
+
+@app.post("/api/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"authenticated": False}
+
+
 @app.post(
     "/api/tickets",
     response_model=TicketOut,
-    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(verify_api_key)],
 )
 def submit_ticket(payload: TicketCreate):
