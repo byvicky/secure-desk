@@ -21,6 +21,7 @@ from securedesk.security import (
     redact_sensitive_data,
     require_admin,
     verify_password,
+    verify_csrf,
 )
 from securedesk.triage import analyze
 
@@ -112,7 +113,7 @@ def session_status(request: Request):
     authenticated = bool(user and user.get("id") and user.get("role"))
     if not settings.production and not settings.web_password and not settings.admin_password:
         return {"authenticated": True, "user": {"username": "local-dev", "role": "admin"}}
-    return {"authenticated": authenticated, "user": user if authenticated else None}
+    return {"authenticated": authenticated, "user": user if authenticated else None, "csrf_token": request.session.get("csrf_token") if authenticated else None}
 
 
 @app.post("/api/login")
@@ -133,11 +134,12 @@ def login(payload: LoginRequest, request: Request):
     login_limiter.reset(attempt_key)
     request.session.clear()
     request.session["user"] = {"id": user["id"], "username": user["username"], "role": user["role"]}
-    return {"authenticated": True, "user": request.session["user"]}
+    request.session["csrf_token"] = secrets.token_urlsafe(32)
+    return {"authenticated": True, "user": request.session["user"], "csrf_token": request.session["csrf_token"]}
 
 
 @app.post("/api/logout")
-def logout(request: Request):
+def logout(request: Request, _: None = Depends(verify_csrf)):
     request.session.clear()
     return {"authenticated": False}
 
@@ -147,7 +149,7 @@ def users():
     return database.list_users()
 
 
-@app.post("/api/users", status_code=201, dependencies=[Depends(require_admin)])
+@app.post("/api/users", status_code=201, dependencies=[Depends(require_admin), Depends(verify_csrf)])
 def create_user(payload: UserCreate):
     try:
         return database.create_user(payload.username, hash_password(payload.password), payload.role)
@@ -158,7 +160,7 @@ def create_user(payload: UserCreate):
 
 
 @app.post("/api/tickets", response_model=TicketOut, status_code=status.HTTP_201_CREATED,
-          dependencies=[Depends(get_current_user)])
+          dependencies=[Depends(get_current_user), Depends(verify_csrf)])
 def submit_ticket(payload: TicketCreate):
     title = redact_sensitive_data(payload.title)
     description = redact_sensitive_data(payload.description)
@@ -190,7 +192,7 @@ def ticket_history(ticket_id: int):
     return database.get_ticket_history(ticket_id)
 
 
-@app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user)])
+@app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user), Depends(verify_csrf)])
 def change_ticket_status(ticket_id: int, payload: TicketUpdate):
     result = database.update_status(ticket_id, payload.status)
     if result is None:
