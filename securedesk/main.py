@@ -202,7 +202,7 @@ def ticket_history(ticket_id: int):
 
 
 @app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user), Depends(verify_csrf)])
-def change_ticket_status(ticket_id: int, payload: TicketUpdate, user: dict = Depends(get_current_user)):
+def change_ticket_status(ticket_id: int, payload: TicketUpdate, user: Annotated[dict, Depends(get_current_user)]):
     result = database.update_status(ticket_id, payload.status, actor=user)
     if result is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
