@@ -113,7 +113,7 @@ def login(payload: LoginRequest, request: Request):
     if origin and origin != f"{request.url.scheme}://{request.url.netloc}":
         raise HTTPException(status_code=403, detail="Origem da solicitação inválida.")
     user = database.get_user_by_username(payload.username)
-    if (not user and payload.username == settings.admin_username and settings.web_password\n            and secrets.compare_digest(payload.password, settings.web_password)):
+    if not user and payload.username == settings.admin_username and settings.web_password and secrets.compare_digest(payload.password, settings.web_password):
         database.ensure_bootstrap_admin(settings.admin_username, hash_password(settings.web_password))
         user = database.get_user_by_username("admin")
     if not user or not user["active"] or not verify_password(payload.password, user["password_hash"]):
