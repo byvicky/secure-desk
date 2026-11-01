@@ -6,13 +6,19 @@ from playwright.sync_api import Page, expect
 
 
 BASE_URL = os.getenv("SECUREDESK_BASE_URL", "http://127.0.0.1:8000")
+WEB_PASSWORD = os.getenv("SECUREDESK_WEB_PASSWORD", "test-password")
+
+
+def login(page: Page):
+    page.goto(BASE_URL)
+    page.locator('#login-form [name="password"]').fill(WEB_PASSWORD)
+    page.locator("#login-form button").click()
+    expect(page.locator("#ticket-form")).to_be_visible(timeout=10_000)
 
 
 @pytest.mark.ui
 def test_ticket_submission_appears_in_list(page: Page):
-    page.goto(BASE_URL)
-    expect(page.locator("#ticket-form")).to_be_visible()
-
+    login(page)
     page.locator('[name="requester"]').fill("Teste Playwright")
     page.locator('[name="title"]').fill("Notebook sem conexão")
     page.locator('[name="description"]').fill(
@@ -30,6 +36,7 @@ def test_ticket_submission_appears_in_list(page: Page):
 
 @pytest.mark.ui
 def test_filters_change_the_visible_tickets(page: Page):
+    login(page)
     suffix = uuid4().hex[:8]
     open_title = f"Chamado aberto {suffix}"
     resolved_title = f"Chamado resolvido {suffix}"
@@ -52,10 +59,19 @@ def test_filters_change_the_visible_tickets(page: Page):
             )
             assert update.status == 200, update.text()
 
-    page.goto(BASE_URL)
+    page.reload()
     expect(page.locator("#ticket-list")).to_contain_text(open_title)
     expect(page.locator("#ticket-list")).to_contain_text(resolved_title)
 
     page.locator("#filter-status").select_option("resolvido")
     expect(page.locator("#ticket-list")).to_contain_text(resolved_title)
     expect(page.locator("#ticket-list")).not_to_contain_text(open_title)
+
+
+@pytest.mark.ui
+def test_invalid_login_does_not_open_dashboard(page: Page):
+    page.goto(BASE_URL)
+    page.locator('#login-form [name="password"]').fill("wrong-password")
+    page.locator("#login-form button").click()
+    expect(page.locator("#login-message")).to_contain_text("Senha incorreta.")
+    expect(page.locator("#ticket-form")).to_be_hidden()
