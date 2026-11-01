@@ -2,7 +2,7 @@ import logging, uuid
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse\nfrom fastapi.staticfiles import StaticFiles
 from securedesk import database
 from securedesk.config import settings
 from securedesk.schemas import TicketCreate,TicketOut,TicketUpdate
@@ -16,7 +16,7 @@ async def lifespan(_:FastAPI):
     database.initialize()
     yield
 app=FastAPI(title="SecureDesk API",description="API de triagem segura de solicitações de suporte.",version="0.1.0",docs_url=None if settings.production else "/docs",redoc_url=None if settings.production else "/redoc",lifespan=lifespan)
-if settings.cors_origins:
+app.mount("/static", StaticFiles(directory="web"), name="static")\nif settings.cors_origins:
     app.add_middleware(CORSMiddleware,allow_origins=list(settings.cors_origins),allow_credentials=False,allow_methods=["GET","POST","PATCH"],allow_headers=["Authorization","Content-Type","X-Request-ID"])
 @app.middleware("http")
 async def security_headers(request:Request,call_next):
