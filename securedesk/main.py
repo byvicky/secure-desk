@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from securedesk import database
 from securedesk.config import settings
-from securedesk.schemas import Category, Priority, Status, TicketCreate, TicketOut, TicketUpdate
+from securedesk.schemas import (Category, Priority, Status, TicketAssignment, TicketCommentCreate, TicketCreate, TicketOut, TicketUpdate)
 from securedesk.security import (
     RateLimiter,
     get_current_user,
@@ -161,7 +161,7 @@ def create_user(payload: UserCreate):
 
 @app.post("/api/tickets", response_model=TicketOut, status_code=status.HTTP_201_CREATED,
           dependencies=[Depends(get_current_user), Depends(verify_csrf)])
-def submit_ticket(payload: TicketCreate):
+def submit_ticket(payload: TicketCreate, user: dict = Depends(get_current_user)):
     title = redact_sensitive_data(payload.title)
     description = redact_sensitive_data(payload.description)
     requester = redact_sensitive_data(payload.requester)
