@@ -1,6 +1,7 @@
 const form=document.querySelector("#ticket-form"),message=document.querySelector("#form-message"),list=document.querySelector("#ticket-list");
 const loginPanel=document.querySelector("#login-panel"),loginForm=document.querySelector("#login-form"),loginMessage=document.querySelector("#login-message"),logoutButton=document.querySelector("#logout");
-let csrfToken="";\nwindow.secureDeskCsrfToken="";
+let csrfToken="";
+window.secureDeskCsrfToken="";
 const priorities={critica:"Crítica",alta:"Alta",media:"Média",baixa:"Baixa"},categories={acesso:"Acesso",hardware:"Hardware",software:"Software",rede:"Rede",seguranca:"Segurança",outro:"Outro"};
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function showLogin(show){loginPanel.hidden=!show;document.querySelector(".shell").hidden=show;}
