@@ -94,7 +94,7 @@ def health():
 
 @app.get("/api/session")
 def session_status(request: Request):
-    return {"authenticated": bool(request.session.get("authenticated"))}
+    return {"authenticated": bool(request.session.get("authenticated")) or (not settings.production and not settings.web_password)}
 
 
 @app.post("/api/login")
