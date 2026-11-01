@@ -18,7 +18,7 @@ class TicketCreate(BaseModel):
     @field_validator("requester", "title", "description")
     @classmethod
     def safe_text(cls, value: str) -> str:
-        if any(ord(char) < 32 and char not in "\\n\\t" for char in value):
+        if any(ord(char) < 32 and char not in "\n\t" for char in value):
             raise ValueError("Caracteres de controle não permitidos.")
         return value
 
