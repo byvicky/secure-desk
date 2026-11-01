@@ -14,7 +14,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from securedesk import database
 from securedesk.config import settings
 from securedesk.schemas import Category, Priority, Status, TicketCreate, TicketOut, TicketUpdate
-from securedesk.security import RateLimiter, get_current_user, hash_password, redact_sensitive_data, require_admin, verify_password
+from securedesk.security import (
+    RateLimiter,
+    get_current_user,
+    hash_password,
+    redact_sensitive_data,
+    require_admin,
+    verify_password,
+)
 from securedesk.triage import analyze
 
 logging.basicConfig(level=logging.INFO)
