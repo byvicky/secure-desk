@@ -38,3 +38,20 @@ class TicketOut(BaseModel):
     priority: Priority
     status: Status
     created_at: str
+
+
+class TicketAssignment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: int | None
+
+
+class TicketCommentCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    body: str = Field(min_length=2, max_length=2000)
+
+    @field_validator("body")
+    @classmethod
+    def safe_comment(cls, value: str) -> str:
+        if any(ord(char) < 32 and char not in "\n\t" for char in value):
+            raise ValueError("Caracteres de controle não permitidos.")
+        return value
