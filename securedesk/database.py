@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,19 @@ def connect():
     return db
 
 
+@contextmanager
+def get_db():
+    """Manage a SQLite transaction and always close its connection."""
+    db = connect()
+    try:
+        with db:
+            yield db
+    finally:
+        db.close()
+
+
 def initialize():
-    with connect() as db:
+    with get_db() as db:
         db.executescript("""
         CREATE TABLE IF NOT EXISTS tickets(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +54,7 @@ def initialize():
 
 
 def create_ticket(data: dict[str, Any]) -> dict[str, Any]:
-    with connect() as db:
+    with get_db() as db:
         cur = db.execute(
             "INSERT INTO tickets(requester,title,description,category,priority) VALUES(?,?,?,?,?)",
             (data["requester"], data["title"], data["description"], data["category"], data["priority"]),
@@ -65,7 +77,7 @@ def list_tickets(limit: int = 50, status: str | None = None,
             values.append(value)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     values.append(limit)
-    with connect() as db:
+    with get_db() as db:
         return [
             dict(row)
             for row in db.execute(
@@ -75,13 +87,13 @@ def list_tickets(limit: int = 50, status: str | None = None,
 
 
 def get_ticket(ticket_id: int):
-    with connect() as db:
+    with get_db() as db:
         row = db.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
         return dict(row) if row else None
 
 
 def update_status(ticket_id: int, new_status: str):
-    with connect() as db:
+    with get_db() as db:
         cur = db.execute("UPDATE tickets SET status=? WHERE id=?", (new_status, ticket_id))
         if not cur.rowcount:
             return None
@@ -93,7 +105,7 @@ def update_status(ticket_id: int, new_status: str):
 
 
 def get_ticket_history(ticket_id: int):
-    with connect() as db:
+    with get_db() as db:
         return [
             dict(row)
             for row in db.execute(

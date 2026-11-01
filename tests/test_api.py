@@ -62,10 +62,10 @@ def test_security_headers_present(client):
 def test_multiline_description_is_accepted(client):
     response = client.post("/api/tickets", json={
         "requester": "Joana", "title": "Falha no computador",
-        "description": "O computador não inicia.\\nA tela fica preta.",
+        "description": "O computador não inicia.\nA tela fica preta.",
     })
     assert response.status_code == 201
-    assert "\\n" in response.json()["description"]
+    assert "\n" in response.json()["description"]
 
 
 def test_ticket_audit_history(client):
