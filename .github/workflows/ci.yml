@@ -27,4 +27,4 @@ jobs:
       - name: Run tests
         run: pytest -q
       - name: Check code style
-        run: ruff check --fix securedesk tests
+        run: ruff check securedesk tests
