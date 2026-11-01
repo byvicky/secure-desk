@@ -38,6 +38,8 @@ class TicketOut(BaseModel):
     priority: Priority
     status: Status
     created_at: str
+    assigned_to: int | None = None
+    created_by: int | None = None
 
 
 class TicketAssignment(BaseModel):
