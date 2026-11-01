@@ -20,8 +20,8 @@ from securedesk.security import (
     hash_password,
     redact_sensitive_data,
     require_admin,
-    verify_password,
     verify_csrf,
+    verify_password,
 )
 from securedesk.triage import analyze
 
