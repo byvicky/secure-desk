@@ -18,7 +18,7 @@ def test_ticket_submission_appears_in_list(page: Page):
     page.locator('[name="description"]').fill(
         "O notebook de teste não conecta à rede Wi-Fi."
     )
-    page.locator('#ticket-form button[type="submit"]').click()
+    page.locator("#ticket-form button.primary").click()
 
     expect(page.locator("#form-message")).to_contain_text(
         "registrada", timeout=10_000
@@ -59,3 +59,4 @@ def test_filters_change_the_visible_tickets(page: Page):
     page.locator("#filter-status").select_option("resolvido")
     expect(page.locator("#ticket-list")).to_contain_text(resolved_title)
     expect(page.locator("#ticket-list")).not_to_contain_text(open_title)
+}
