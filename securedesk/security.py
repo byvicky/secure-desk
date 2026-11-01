@@ -80,6 +80,10 @@ class RateLimiter:
         self.events = defaultdict(deque)
         self.lock = Lock()
 
+    def reset(self, key: str) -> None:
+        with self.lock:
+            self.events.pop(key, None)
+
     def check(self, key: str) -> bool:
         now = time.monotonic()
         with self.lock:
