@@ -6,6 +6,8 @@ from dataclasses import dataclass
 class Settings:
     environment: str = os.getenv("SECUREDESK_ENV", "development").lower()
     api_key: str = os.getenv("SECUREDESK_API_KEY", "")
+    web_password: str = os.getenv("SECUREDESK_WEB_PASSWORD", "")
+    session_secret: str = os.getenv("SECUREDESK_SESSION_SECRET", "")
     database: str = os.getenv("SECUREDESK_DATABASE", "./data/securedesk.db")
     cors_origins: tuple[str, ...] = tuple(
         item.strip()
