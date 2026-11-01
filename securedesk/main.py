@@ -94,7 +94,10 @@ def health():
 
 @app.get("/api/session")
 def session_status(request: Request):
-    return {"authenticated": bool(request.session.get("authenticated")) or (not settings.production and not settings.web_password)}
+    return {
+        "authenticated": bool(request.session.get("authenticated"))
+        or (not settings.production and not settings.web_password)
+    }
 
 
 @app.post("/api/login")
@@ -123,6 +126,7 @@ def logout(request: Request):
 @app.post(
     "/api/tickets",
     response_model=TicketOut,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(verify_api_key)],
 )
 def submit_ticket(payload: TicketCreate):
