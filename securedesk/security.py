@@ -61,7 +61,7 @@ def get_current_user(request: Request) -> dict:
     )
 
 
-def require_admin(user: dict = Depends(get_current_user)) -> dict:
+def require_admin(user: dict = Depends(get_current_user)) -> dict:  # noqa: B008
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Permissão de administrador necessária.")
     return user
