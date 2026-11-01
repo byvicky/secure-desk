@@ -72,3 +72,36 @@ def test_multiline_description_is_accepted(client):
     )
     assert response.status_code == 201
     assert "\\n" in response.json()["description"]
+
+
+def test_ticket_audit_history(client):
+    created = client.post(
+        "/api/tickets",
+        json={
+            "requester": "Carla",
+            "title": "Acesso bloqueado",
+            "description": "Não consigo acessar minha conta corporativa.",
+        },
+    )
+    assert created.status_code == 201
+    ticket_id = created.json()["id"]
+
+    initial = client.get(f"/api/tickets/{ticket_id}/history")
+    assert initial.status_code == 200
+    assert len(initial.json()) == 1
+    assert initial.json()[0]["event"] == "Solicitação registrada"
+
+    changed = client.patch(
+        f"/api/tickets/{ticket_id}", json={"status": "em_andamento"}
+    )
+    assert changed.status_code == 200
+
+    history = client.get(f"/api/tickets/{ticket_id}/history")
+    assert history.status_code == 200
+    assert len(history.json()) == 2
+    assert history.json()[0]["event"] == "Status alterado para em_andamento"
+
+
+def test_ticket_history_not_found(client):
+    response = client.get("/api/tickets/98765/history")
+    assert response.status_code == 404

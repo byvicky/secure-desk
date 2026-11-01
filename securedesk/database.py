@@ -79,3 +79,15 @@ def update_status(ticket_id: int, new_status: str):
             (ticket_id, f"Status alterado para {new_status}"),
         )
         return dict(db.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone())
+
+
+def get_ticket_history(ticket_id: int):
+    with connect() as db:
+        return [
+            dict(row)
+            for row in db.execute(
+                "SELECT id, ticket_id, event, created_at FROM audit_events "
+                "WHERE ticket_id=? ORDER BY id DESC",
+                (ticket_id,),
+            ).fetchall()
+        ]

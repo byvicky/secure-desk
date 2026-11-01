@@ -109,6 +109,13 @@ def ticket_detail(ticket_id: int):
     return result
 
 
+@app.get("/api/tickets/{ticket_id}/history", dependencies=[Depends(verify_api_key)])
+def ticket_history(ticket_id: int):
+    if database.get_ticket(ticket_id) is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+    return database.get_ticket_history(ticket_id)
+
+
 @app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(verify_api_key)])
 def change_ticket_status(ticket_id: int, payload: TicketUpdate):
     result = database.update_status(ticket_id, payload.status)
