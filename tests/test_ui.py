@@ -12,6 +12,7 @@ WEB_PASSWORD = os.getenv("SECUREDESK_WEB_PASSWORD", "test-password")
 
 def login(page: Page):
     page.goto(BASE_URL)
+    page.locator('#login-form [name="username"]').fill("admin")
     page.locator('#login-form [name="password"]').fill(WEB_PASSWORD)
     page.locator("#login-form button").click()
     expect(page.locator("#ticket-form")).to_be_visible(timeout=10_000)
@@ -72,7 +73,8 @@ def test_filters_change_the_visible_tickets(page: Page):
 @pytest.mark.ui
 def test_invalid_login_does_not_open_dashboard(page: Page):
     page.goto(BASE_URL)
+    page.locator('#login-form [name="username"]').fill("admin")
     page.locator('#login-form [name="password"]').fill("wrong-password")
     page.locator("#login-form button").click()
-    expect(page.locator("#login-message")).to_contain_text("Senha incorreta.")
+    expect(page.locator("#login-message")).to_contain_text("Usuário ou senha incorretos.")
     expect(page.locator("#ticket-form")).to_be_hidden()
