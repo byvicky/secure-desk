@@ -1,18 +1,42 @@
+import hashlib
+import hmac
 import re
 import secrets
 import time
 from collections import defaultdict, deque
 from threading import Lock
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 
 from securedesk.config import settings
 
+_PASSWORD_ITERATIONS = 310_000
 _PATTERNS = [
     (re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"), "[EMAIL REDIGIDO]"),
     (re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"), "[CPF REDIGIDO]"),
     (re.compile(r"(?<!\d)(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-. ]?\d{4}(?!\d)"), "[TELEFONE REDIGIDO]"),
 ]
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PASSWORD_ITERATIONS)
+    return "pbkdf2_sha256\${}\${}\${}".format(
+        _PASSWORD_ITERATIONS, salt.hex(), digest.hex()
+    )
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, iterations, salt_hex, digest_hex = encoded.split("$")
+        if algorithm != "pbkdf2_sha256":
+            return False
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
+        )
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError):
+        return False
 
 
 def redact_sensitive_data(value: str) -> str:
@@ -22,24 +46,31 @@ def redact_sensitive_data(value: str) -> str:
     return value
 
 
-def verify_api_key(request: Request) -> None:
-    """Accept a signed browser session or a valid bearer token."""
-    if request.session.get("authenticated"):
-        return
-    if not settings.production and not settings.api_key:
-        return
+def get_current_user(request: Request) -> dict:
+    user = request.session.get("user")
+    if user and isinstance(user, dict) and user.get("id") and user.get("role") in {"admin", "agent"}:
+        return user
+    if not settings.production and not settings.web_password:
+        return {"id": 0, "username": "local-dev", "role": "admin"}
     supplied = request.headers.get("Authorization", "")
     token = supplied.removeprefix("Bearer ")
-    if (
-        not supplied.startswith("Bearer ")
-        or not settings.api_key
-        or not secrets.compare_digest(token, settings.api_key)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credencial ausente ou inválida.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if supplied.startswith("Bearer ") and settings.api_key and secrets.compare_digest(token, settings.api_key):
+        return {"id": 0, "username": "api-token", "role": "admin"}
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Autenticação necessária.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Permissão de administrador necessária.")
+    return user
+
+
+def verify_api_key(request: Request) -> None:
+    get_current_user(request)
 
 
 class RateLimiter:
