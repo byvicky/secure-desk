@@ -9,9 +9,9 @@ from fastapi import HTTPException, Request, status
 from securedesk.config import settings
 
 _PATTERNS = [
-    (re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"), "[EMAIL REDIGIDO]"),
-    (re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"), "[CPF REDIGIDO]"),
-    (re.compile(r"(?<!\d)(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-. ]?\d{4}(?!\d)"), "[TELEFONE REDIGIDO]"),
+    (re.compile(r"(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b"), "[EMAIL REDIGIDO]"),
+    (re.compile(r"\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b"), "[CPF REDIGIDO]"),
+    (re.compile(r"(?<!\\d)(?:\\+?55\\s?)?(?:\\(?\\d{2}\\)?\\s?)?9?\\d{4}[-. ]?\\d{4}(?!\\d)"), "[TELEFONE REDIGIDO]"),
 ]
 
 
@@ -23,7 +23,9 @@ def redact_sensitive_data(value: str) -> str:
 
 
 def verify_api_key(request: Request) -> None:
-    """Require a bearer token in production; compare it in constant time."""
+    """Accept a signed browser session or a valid bearer token."""
+    if request.session.get("authenticated"):
+        return
     if not settings.production and not settings.api_key:
         return
     supplied = request.headers.get("Authorization", "")
