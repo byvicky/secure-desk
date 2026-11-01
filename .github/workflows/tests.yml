@@ -24,6 +24,9 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: python -m playwright install --with-deps chromium
       - name: Start app and run browser tests
+        env:
+          SECUREDESK_WEB_PASSWORD: test-password
+          SECUREDESK_SESSION_SECRET: ci-only-session-secret
         run: |
           uvicorn securedesk.main:app --host 127.0.0.1 --port 8000 &
           server_pid=$!
