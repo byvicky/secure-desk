@@ -50,7 +50,7 @@ def get_current_user(request: Request) -> dict:
     user = request.session.get("user")
     if user and isinstance(user, dict) and user.get("id") and user.get("role") in {"admin", "agent"}:
         return user
-    if not settings.production and not settings.web_password:
+    if not settings.production and not settings.web_password and not getattr(settings, "admin_password", ""):
         return {"id": 0, "username": "local-dev", "role": "admin"}
     supplied = request.headers.get("Authorization", "")
     token = supplied.removeprefix("Bearer ")
