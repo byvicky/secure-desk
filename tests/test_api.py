@@ -106,3 +106,44 @@ def test_ticket_filters_reject_invalid_values(client):
     assert client.get("/api/tickets?category=unknown").status_code == 422
     assert client.get("/api/tickets?priority=urgent").status_code == 422
     assert client.get("/api/tickets?limit=101").status_code == 422
+
+
+def test_assignment_comments_and_actor_audit(client):
+    from securedesk.security import hash_password
+
+    agent = database.create_user("assigned-agent", hash_password("a-long-agent-password"), "agent")
+    created = ticket(client, "Falha no acesso VPN", "Não consigo conectar à VPN corporativa.")
+    ticket_id = created["id"]
+
+    assignable = client.get("/api/users/assignable")
+    assert assignable.status_code == 200
+    assert any(user["id"] == agent["id"] for user in assignable.json())
+
+    assigned = client.post(
+        f"/api/tickets/{ticket_id}/assignment", json={"user_id": agent["id"]}
+    )
+    assert assigned.status_code == 200
+    assert assigned.json()["assigned_to"] == agent["id"]
+
+    comment = client.post(
+        f"/api/tickets/{ticket_id}/comments",
+        json={"body": "Estou verificando a configuração da VPN."},
+    )
+    assert comment.status_code == 201
+    assert comment.json()["username"] == "local-dev"
+    assert client.get(f"/api/tickets/{ticket_id}/comments").json()[0]["body"] == (
+        "Estou verificando a configuração da VPN."
+    )
+
+    history = client.get(f"/api/tickets/{ticket_id}/history").json()
+    assert history[0]["event"] == "Comentário adicionado"
+    assert history[0]["actor_username"] == "local-dev"
+    assert any(item["event"] == "Chamado atribuído a assigned-agent" for item in history)
+
+
+def test_assignment_rejects_inactive_or_missing_user(client):
+    created = ticket(client, "Falha no monitor", "O monitor não apresenta imagem.")
+    response = client.post(
+        f"/api/tickets/{created['id']}/assignment", json={"user_id": 9999}
+    )
+    assert response.status_code == 404
