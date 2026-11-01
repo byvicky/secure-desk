@@ -40,7 +40,8 @@ O SecureDesk busca:
 | Priorização | Define prioridade baixa, média, alta ou crítica por regras explícitas. |
 | Proteção de dados | Mascara e-mail, CPF e telefone reconhecidos antes de salvar. |
 | Validação | Rejeita campos inválidos e propriedades inesperadas. |
-| API autenticável | Suporta chave Bearer e exige autenticação quando configurada para produção. |
+| API autenticável | Suporta chave Bearer e sessão web assinada no servidor. |
+| Login web | Protege a interface com senha configurada no servidor e cookie HttpOnly. |
 | Limite de requisições | Aplica rate limiting básico por endereço de origem. |
 | Auditoria | Registra criação e mudanças de status. |
 | Interface web | Permite registrar e acompanhar chamados em uma interface responsiva. |
@@ -124,6 +125,8 @@ Copie `.env.example` para `.env`. Para habilitar autenticação obrigatória:
 ```env
 SECUREDESK_ENV=production
 SECUREDESK_API_KEY=uma-chave-longa-e-aleatoria
+SECUREDESK_WEB_PASSWORD=uma-senha-forte-para-o-painel
+SECUREDESK_SESSION_SECRET=um-segredo-aleatorio-longo-para-assinar-sessoes
 SECUREDESK_CORS_ORIGINS=
 ```
 
@@ -133,11 +136,11 @@ Gere uma chave forte:
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Em produção, envie a credencial no cabeçalho `Authorization: Bearer <chave>`. Não coloque a chave no frontend nem faça commit do arquivo `.env`.
+Na interface web, o usuário entra com `SECUREDESK_WEB_PASSWORD`; o servidor cria uma sessão assinada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` em produção. Clientes de API também podem usar `Authorization: Bearer <chave>`. Gere valores aleatórios fortes para `SECUREDESK_API_KEY` e `SECUREDESK_SESSION_SECRET`. Não coloque segredos no frontend nem faça commit do arquivo `.env`. Em desenvolvimento, se `SECUREDESK_WEB_PASSWORD` estiver vazio, o painel permanece aberto para uso local.
 
 ### Limitações conhecidas
 
-Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários gestão de usuários e permissões, armazenamento seguro de segredos, testes de segurança adicionais, HTTPS por proxy e revisão antes de uso real.
+Este é um protótipo educacional, não um serviço pronto para produção. O login atual usa uma senha compartilhada, não contas individuais nem perfis de acesso. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários gestão individual de usuários e permissões, armazenamento seguro de segredos, proteção contra tentativas automatizadas de login, testes de segurança adicionais, HTTPS por proxy e revisão antes de uso real.
 
 ## ✦ Testes
 
@@ -151,6 +154,7 @@ pytest
 - [x] Classificação e priorização baseadas em regras.
 - [x] Mascaramento de identificadores comuns.
 - [x] Validação de entrada e testes iniciais.
+- [x] Login web com sessão assinada e cookie protegido.
 - [ ] Autenticação individual e perfis de acesso.
 - [ ] Integração opcional com LLM usando minimização de dados.
 - [ ] Histórico detalhado e filtros na interface.
