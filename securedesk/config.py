@@ -8,6 +8,8 @@ class Settings:
     api_key: str = os.getenv("SECUREDESK_API_KEY", "")
     web_password: str = os.getenv("SECUREDESK_WEB_PASSWORD", "")
     session_secret: str = os.getenv("SECUREDESK_SESSION_SECRET", "")
+    admin_username: str = os.getenv("SECUREDESK_ADMIN_USERNAME", "admin")
+    admin_password: str = os.getenv("SECUREDESK_ADMIN_PASSWORD", os.getenv("SECUREDESK_WEB_PASSWORD", ""))
     database: str = os.getenv("SECUREDESK_DATABASE", "./data/securedesk.db")
     cors_origins: tuple[str, ...] = tuple(
         item.strip()
