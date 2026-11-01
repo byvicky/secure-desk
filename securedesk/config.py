@@ -1,0 +1,15 @@
+import os
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Settings:
+    environment: str = os.getenv("SECUREDESK_ENV", "development").lower()
+    api_key: str = os.getenv("SECUREDESK_API_KEY", "")
+    database: str = os.getenv("SECUREDESK_DATABASE", "./data/securedesk.db")
+    cors_origins: tuple[str, ...] = tuple(x.strip() for x in os.getenv("SECUREDESK_CORS_ORIGINS", "").split(",") if x.strip())
+    rate_limit: int = max(10, int(os.getenv("SECUREDESK_RATE_LIMIT", "60")))
+    @property
+    def production(self) -> bool:
+        return self.environment == "production"
+
+settings = Settings()
