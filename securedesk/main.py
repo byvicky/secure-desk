@@ -1,5 +1,6 @@
 import logging
 import uuid
+from typing import Annotated
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
@@ -99,7 +100,7 @@ def submit_ticket(payload: TicketCreate):
 @app.get("/api/tickets", response_model=list[TicketOut], dependencies=[Depends(verify_api_key)])
 def tickets(
     limit: int = Query(default=50, ge=1, le=100),
-    status_filter: Status | None = Query(default=None, alias="status"),
+    status_filter: Annotated[Status | None, Query(alias="status")] = None,
     category: Category | None = None,
     priority: Priority | None = None,
 ):
