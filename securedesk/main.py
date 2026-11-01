@@ -167,7 +167,7 @@ def submit_ticket(payload: TicketCreate, user: dict = Depends(get_current_user))
     requester = redact_sensitive_data(payload.requester)
     category, priority = analyze(title, description, payload.category)
     return database.create_ticket({"requester": requester, "title": title, "description": description,
-                                   "category": category, "priority": priority})
+                                   "category": category, "priority": priority}, actor=user)
 
 
 @app.get("/api/tickets", response_model=list[TicketOut], dependencies=[Depends(get_current_user)])
@@ -198,6 +198,34 @@ def change_ticket_status(ticket_id: int, payload: TicketUpdate):
     if result is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
     return result
+
+
+@app.get("/api/users/assignable", dependencies=[Depends(get_current_user)])
+def assignable_users():
+    return database.list_assignable_users()
+
+
+@app.post("/api/tickets/{ticket_id}/assignment", dependencies=[Depends(get_current_user), Depends(verify_csrf)])
+def assign_ticket(ticket_id: int, payload: TicketAssignment, user: dict = Depends(get_current_user)):
+    result = database.assign_ticket(ticket_id, payload.user_id, user)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Chamado ou usuário ativo não encontrado.")
+    return result
+
+
+@app.get("/api/tickets/{ticket_id}/comments", dependencies=[Depends(get_current_user)])
+def ticket_comments(ticket_id: int):
+    if database.get_ticket(ticket_id) is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+    return database.list_comments(ticket_id)
+
+
+@app.post("/api/tickets/{ticket_id}/comments", status_code=201, dependencies=[Depends(get_current_user), Depends(verify_csrf)])
+def add_ticket_comment(ticket_id: int, payload: TicketCommentCreate, user: dict = Depends(get_current_user)):
+    comment = database.add_comment(ticket_id, redact_sensitive_data(payload.body), user)
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+    return comment
 
 
 @app.get("/", include_in_schema=False)
