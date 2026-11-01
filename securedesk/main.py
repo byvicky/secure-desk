@@ -27,6 +27,7 @@ from securedesk.triage import analyze
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("securedesk")
 limiter = RateLimiter(settings.rate_limit)
+login_limiter = RateLimiter(limit=5, window_seconds=900)
 
 
 class LoginRequest(BaseModel):
@@ -119,12 +120,17 @@ def login(payload: LoginRequest, request: Request):
     origin = request.headers.get("origin")
     if origin and origin != f"{request.url.scheme}://{request.url.netloc}":
         raise HTTPException(status_code=403, detail="Origem da solicitação inválida.")
+    client_ip = request.client.host if request.client else "unknown"
+    attempt_key = f"{client_ip}:{payload.username.casefold()}"
+    if not login_limiter.check(attempt_key):
+        raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 15 minutos.")
     user = database.get_user_by_username(payload.username)
     if not user and payload.username == settings.admin_username and settings.web_password and secrets.compare_digest(payload.password, settings.web_password):
         database.ensure_bootstrap_admin(settings.admin_username, hash_password(settings.web_password))
         user = database.get_user_by_username(settings.admin_username)
     if not user or not user["active"] or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Usuário ou senha incorretos.")
+    login_limiter.reset(attempt_key)
     request.session.clear()
     request.session["user"] = {"id": user["id"], "username": user["username"], "role": user["role"]}
     return {"authenticated": True, "user": request.session["user"]}
