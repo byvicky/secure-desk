@@ -61,7 +61,7 @@ def test_agent_cannot_manage_users(client):
     })
     assert login.status_code == 200
     assert client.get("/api/users").status_code == 403
-    assert client.post("/api/users", json={
+    assert client.post("/api/users", headers={"X-CSRF-Token": login.json()["csrf_token"]}, json={
         "username": "another-agent", "password": "another-password-123", "role": "agent"
     }).status_code == 403
 
