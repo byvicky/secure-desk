@@ -67,6 +67,23 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:  # noqa: B008
     return user
 
 
+def verify_csrf(request: Request) -> None:
+    """Require a session-bound token for cookie-authenticated state changes."""
+    authorization = request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer ") or (
+        not settings.production and not settings.web_password
+        and not getattr(settings, "admin_password", "")
+    ):
+        return
+    user = request.session.get("user")
+    if not user:
+        return
+    expected = request.session.get("csrf_token", "")
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not expected or not supplied or not secrets.compare_digest(expected, supplied):
+        raise HTTPException(status_code=403, detail="Token CSRF inválido ou ausente.")
+
+
 def verify_api_key(request: Request) -> None:
     get_current_user(request)
 
