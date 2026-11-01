@@ -126,7 +126,8 @@ Copie `.env.example` para `.env`. Para habilitar autenticação obrigatória:
 ```env
 SECUREDESK_ENV=production
 SECUREDESK_API_KEY=uma-chave-longa-e-aleatoria
-SECUREDESK_ADMIN_USERNAME=admin\nSECUREDESK_ADMIN_PASSWORD=uma-senha-forte-com-pelo-menos-12-caracteres
+SECUREDESK_ADMIN_USERNAME=admin
+SECUREDESK_ADMIN_PASSWORD=uma-senha-forte-com-pelo-menos-12-caracteres
 SECUREDESK_SESSION_SECRET=um-segredo-aleatorio-longo-para-assinar-sessoes
 SECUREDESK_CORS_ORIGINS=
 ```
