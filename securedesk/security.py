@@ -21,9 +21,7 @@ _PATTERNS = [
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PASSWORD_ITERATIONS)
-    return "pbkdf2_sha256\${}\${}\${}".format(
-        _PASSWORD_ITERATIONS, salt.hex(), digest.hex()
-    )
+    return "pbkdf2_sha256" + "$" + str(_PASSWORD_ITERATIONS) + "$" + salt.hex() + "$" + digest.hex()
 
 
 def verify_password(password: str, encoded: str) -> bool:
