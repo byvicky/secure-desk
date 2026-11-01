@@ -59,4 +59,3 @@ def test_filters_change_the_visible_tickets(page: Page):
     page.locator("#filter-status").select_option("resolvido")
     expect(page.locator("#ticket-list")).to_contain_text(resolved_title)
     expect(page.locator("#ticket-list")).not_to_contain_text(open_title)
-}
