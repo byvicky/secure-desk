@@ -115,7 +115,7 @@ def login(payload: LoginRequest, request: Request):
     user = database.get_user_by_username(payload.username)
     if not user and payload.username == settings.admin_username and settings.web_password and secrets.compare_digest(payload.password, settings.web_password):
         database.ensure_bootstrap_admin(settings.admin_username, hash_password(settings.web_password))
-        user = database.get_user_by_username("admin")
+        user = database.get_user_by_username(settings.admin_username)
     if not user or not user["active"] or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Usuário ou senha incorretos.")
     request.session.clear()
