@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from securedesk import database
@@ -7,7 +8,7 @@ from securedesk.main import app
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(database.settings, "database", str(tmp_path / "test.db"))
+    monkeypatch.setattr(database, "settings", SimpleNamespace(database=str(tmp_path / "test.db")) )
     with TestClient(app) as test_client:
         yield test_client
 
