@@ -59,3 +59,16 @@ def test_security_headers_present(client):
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert "Content-Security-Policy" in response.headers
+
+
+def test_multiline_description_is_accepted(client):
+    response = client.post(
+        "/api/tickets",
+        json={
+            "requester": "Joana",
+            "title": "Falha no computador",
+            "description": "O computador não inicia.\\nA tela fica preta.",
+        },
+    )
+    assert response.status_code == 201
+    assert "\\n" in response.json()["description"]
