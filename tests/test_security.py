@@ -40,14 +40,15 @@ def test_individual_login_and_admin_user_management(client):
     assert response.status_code == 200
     assert response.json()["user"]["role"] == "admin"
 
-    created = client.post("/api/users", json={
+    csrf = response.json()["csrf_token"]
+    created = client.post("/api/users", headers={"X-CSRF-Token": csrf}, json={
         "username": "support-agent", "password": "agent-password-123", "role": "agent"
     })
     assert created.status_code == 201
     assert created.json()["username"] == "support-agent"
     assert "password_hash" not in created.json()
 
-    duplicate = client.post("/api/users", json={
+    duplicate = client.post("/api/users", headers={"X-CSRF-Token": csrf}, json={
         "username": "SUPPORT-AGENT", "password": "another-password-123", "role": "agent"
     })
     assert duplicate.status_code == 409
@@ -82,3 +83,33 @@ def test_rate_limiter_enforces_window(monkeypatch):
     assert not limiter.check("client")
     clock[0] += 61
     assert limiter.check("client")
+
+
+
+def test_csrf_token_required_for_cookie_authenticated_changes(client):
+    database.create_user("admin-user", hash_password("admin-password-123"), "admin")
+    login = client.post("/api/login", json={
+        "username": "admin-user", "password": "admin-password-123"
+    })
+    assert login.status_code == 200
+    assert client.post("/api/users", json={
+        "username": "without-token", "password": "agent-password-123", "role": "agent"
+    }).status_code == 403
+    token = login.json()["csrf_token"]
+    created = client.post("/api/users", headers={"X-CSRF-Token": token}, json={
+        "username": "with-token", "password": "agent-password-123", "role": "agent"
+    })
+    assert created.status_code == 201
+
+
+def test_login_attempts_are_limited(client, monkeypatch):
+    from securedesk import main
+
+    monkeypatch.setattr(main, "login_limiter", RateLimiter(limit=2, window_seconds=900))
+    for _ in range(2):
+        assert client.post("/api/login", json={
+            "username": "missing", "password": "wrong-password"
+        }).status_code == 401
+    assert client.post("/api/login", json={
+        "username": "missing", "password": "wrong-password"
+    }).status_code == 429
