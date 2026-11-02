@@ -39,7 +39,7 @@ def test_ticket_submission_appears_in_list(page: Page):
 @pytest.mark.ui
 def test_filters_change_the_visible_tickets(page: Page):
     login(page)
-    suffix = uuid4().hex[:8]
+    suffix = uuid4().hex[:8].translate(str.maketrans("0123456789", "abcdefghij"))
     open_title = f"Chamado aberto {suffix}"
     resolved_title = f"Chamado resolvido {suffix}"
 
