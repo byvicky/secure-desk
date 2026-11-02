@@ -142,13 +142,18 @@ def create_ticket(data: dict[str, Any], actor: dict | None = None) -> dict[str, 
 
 
 def list_tickets(limit: int = 50, status: str | None = None,
-                 category: str | None = None, priority: str | None = None):
+                 category: str | None = None, priority: str | None = None,
+                 search: str | None = None):
     clauses = []
     values: list[Any] = []
     for column, value in (("status", status), ("category", category), ("priority", priority)):
         if value is not None:
             clauses.append(f"{column}=?")
             values.append(value)
+    if search and search.strip():
+        clauses.append("(title LIKE ? OR description LIKE ? OR requester LIKE ?)")
+        term = f"%{search.strip()}%"
+        values.extend([term, term, term])
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     values.append(limit)
     with get_db() as db:
@@ -231,3 +236,37 @@ def get_ticket_history(ticket_id: int):
             "SELECT id,ticket_id,event,actor_user_id,actor_username,created_at FROM audit_events WHERE ticket_id=? ORDER BY id DESC",
             (ticket_id,),
         ).fetchall()]
+
+
+def set_user_active(user_id: int, active: bool, actor_id: int):
+    with get_db() as db:
+        target = db.execute(
+            "SELECT id,username,role,active FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        if target is None:
+            return None, "not_found"
+        if user_id == actor_id and not active:
+            return None, "self"
+        if target["role"] == "admin" and target["active"] and not active:
+            active_admins = db.execute(
+                "SELECT COUNT(*) FROM users WHERE role='admin' AND active=1"
+            ).fetchone()[0]
+            if active_admins <= 1:
+                return None, "last_admin"
+        db.execute("UPDATE users SET active=? WHERE id=?", (int(active), user_id))
+        row = db.execute(
+            "SELECT id,username,role,active,created_at FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        return dict(row), None
+
+
+def ticket_stats():
+    with get_db() as db:
+        row = db.execute("""
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN status='aberto' THEN 1 ELSE 0 END) AS open,
+                   SUM(CASE WHEN priority IN ('alta','critica') THEN 1 ELSE 0 END) AS urgent,
+                   SUM(CASE WHEN status='resolvido' THEN 1 ELSE 0 END) AS resolved
+            FROM tickets
+        """).fetchone()
+        return {key: row[key] or 0 for key in ("total", "open", "urgent", "resolved")}
