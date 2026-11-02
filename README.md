@@ -45,7 +45,7 @@ O SecureDesk busca:
 | Perfis de acesso | Perfis admin e agent; somente administradores gerenciam usuários. |
 | Limite de requisições | Aplica rate limiting básico por endereço de origem. |
 | Auditoria | Registra criação e mudanças de status. |
-| Interface web | Permite registrar e acompanhar chamados em uma interface responsiva. |
+| Interface web | Permite registrar, pesquisar e acompanhar chamados em uma interface responsiva. |\n| Atribuição e comentários | Permite atribuir chamados a usuários ativos e registrar comentários. |\n| Administração de contas | Permite desativar e reativar contas, protegendo o último administrador ativo. |\n| Indicadores | Exibe totais gerais de chamados, urgentes e resolvidos. |
 
 ## ✦ Fluxo de funcionamento
 
@@ -138,11 +138,11 @@ Gere uma chave forte:
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PASSWORD` criam a conta administradora caso ainda não exista um administrador. A senha deve ter pelo menos 12 caracteres. Cada conta recebe usuário, hash PBKDF2 com salt individual e perfil `admin` ou `agent`. O administrador autenticado pode criar contas em `/api/users`; agentes não podem gerenciar usuários. O servidor cria uma sessão assinada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` em produção. Alterações autenticadas via navegador exigem token CSRF vinculado à sessão. O login limita a cinco tentativas por combinação de IP e usuário em uma janela de 15 minutos; o bloqueio é mantido em memória e não substitui controles distribuídos. Clientes de API também podem usar `Authorization: Bearer <chave>`. Gere valores aleatórios fortes para `SECUREDESK_API_KEY` e `SECUREDESK_SESSION_SECRET`. Não coloque segredos no frontend nem faça commit do arquivo `.env`. Em desenvolvimento, sem senha de administrador configurada, o painel permanece aberto para uso local.
+Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PASSWORD` criam a conta administradora caso ainda não exista um administrador. A senha deve ter pelo menos 12 caracteres. Cada conta recebe usuário, hash PBKDF2 com salt individual e perfil `admin` ou `agent`. O administrador autenticado pode criar contas em `/api/users`, listar usuários e ativar/desativar contas; o sistema impede desativar a própria conta ou o último administrador ativo. Agentes não podem gerenciar usuários. O servidor cria uma sessão assinada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` em produção. Alterações autenticadas via navegador exigem token CSRF vinculado à sessão. O login limita a cinco tentativas por combinação de IP e usuário em uma janela de 15 minutos; o bloqueio é mantido em memória e não substitui controles distribuídos. Clientes de API também podem usar `Authorization: Bearer <chave>`. Gere valores aleatórios fortes para `SECUREDESK_API_KEY` e `SECUREDESK_SESSION_SECRET`. Não coloque segredos no frontend nem faça commit do arquivo `.env`. Em desenvolvimento, sem senha de administrador configurada, o painel permanece aberto para uso local.
 
 ### Limitações conhecidas
 
-Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários recuperação e desativação de contas, notificações, armazenamento distribuído do rate limiter, HTTPS por proxy e revisão antes de uso real.
+Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários recuperação de senha, notificações, armazenamento distribuído do rate limiter, HTTPS por proxy e revisão antes de uso real.
 
 ## ✦ Testes
 
