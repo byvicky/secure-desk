@@ -116,11 +116,11 @@ def test_login_attempts_are_limited(client, monkeypatch):
 
 
 def test_deactivated_user_session_is_rejected(client):
-    database.create_user("revoked-user", hash_password("revoked-password-123"), "agent")
+    user = database.create_user("revoked-user", hash_password("revoked-password-123"), "agent")
     login = client.post("/api/login", json={
         "username": "revoked-user", "password": "revoked-password-123"
     })
     assert login.status_code == 200
-    database.set_user_active(1, False, 999)  # The first user in this isolated database.
+    database.set_user_active(user["id"], False, 999)
     response = client.get("/api/tickets")
     assert response.status_code == 401
