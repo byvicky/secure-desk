@@ -228,7 +228,7 @@ def test_rate_limiter_is_shared_between_instances(tmp_path, monkeypatch):
 def test_agent_can_only_work_on_assigned_tickets(client):
     own_agent = database.create_user("own-agent", hash_password("own-agent-password-123"), "agent")
     other_agent = database.create_user("other-agent", hash_password("other-agent-password-123"), "agent")
-    admin = database.create_user("ticket-admin", hash_password("ticket-admin-password-123"), "admin")
+    database.create_user("ticket-admin", hash_password("ticket-admin-password-123"), "admin")
     admin_login = client.post("/api/login", json={
         "username": "ticket-admin", "password": "ticket-admin-password-123"
     })
