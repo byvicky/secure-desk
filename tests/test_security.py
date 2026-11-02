@@ -138,8 +138,9 @@ def test_password_verification_rejects_unsafe_hash_parameters(monkeypatch):
 
 
 def test_production_requires_strong_session_secret(monkeypatch, tmp_path):
-    from fastapi.testclient import TestClient
     from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
 
     from securedesk import main
 
