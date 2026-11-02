@@ -156,7 +156,11 @@ def login(payload: LoginRequest, request: Request):
 
 
 @app.post("/api/logout")
-def logout(request: Request, _: None = Depends(verify_csrf)):
+def logout(
+    request: Request,
+    _: Annotated[dict, Depends(get_current_user)],
+    __: None = Depends(verify_csrf),
+):
     request.session.clear()
     return {"authenticated": False}
 
