@@ -215,7 +215,7 @@ def assignable_users():
 
 
 @app.post("/api/tickets/{ticket_id}/assignment", dependencies=[Depends(get_current_user), Depends(verify_csrf)])
-def assign_ticket(ticket_id: int, payload: TicketAssignment, user: dict = Depends(get_current_user)):
+def assign_ticket(ticket_id: int, payload: TicketAssignment, user: Annotated[dict, Depends(get_current_user)]):
     result = database.assign_ticket(ticket_id, payload.user_id, user)
     if result is None:
         raise HTTPException(status_code=404, detail="Chamado ou usuário ativo não encontrado.")
