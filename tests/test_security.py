@@ -175,3 +175,35 @@ def test_concurrent_deactivation_cannot_remove_all_active_admins(client):
             "SELECT COUNT(*) FROM users WHERE role='admin' AND active=1"
         ).fetchone()[0]
     assert active_admins == 1
+
+
+
+def test_logout_requires_authentication(client):
+    response = client.post("/api/logout")
+    assert response.status_code == 401
+
+
+def test_all_cookie_write_routes_require_csrf(client):
+    database.create_user("csrf-admin", hash_password("csrf-admin-password-123"), "admin")
+    login = client.post("/api/login", json={
+        "username": "csrf-admin", "password": "csrf-admin-password-123"
+    })
+    assert login.status_code == 200
+
+    write_requests = [
+        ("post", "/api/logout", None),
+        ("post", "/api/users", {
+            "username": "csrf-agent", "password": "csrf-agent-password-123", "role": "agent"
+        }),
+        ("patch", "/api/users/999/active", {"active": False}),
+        ("post", "/api/tickets", {
+            "requester": "Solicitante", "title": "Falha no acesso", 
+            "description": "Não consigo acessar o sistema interno.", "category": "acesso"
+        }),
+        ("patch", "/api/tickets/999", {"status": "em_andamento"}),
+        ("post", "/api/tickets/999/assignment", {"user_id": None}),
+        ("post", "/api/tickets/999/comments", {"body": "Comentário de teste"}),
+    ]
+    for method, path, payload in write_requests:
+        response = getattr(client, method)(path, json=payload) if payload is not None else client.post(path)
+        assert response.status_code == 403, f"{method.upper()} {path} não exigiu CSRF"
