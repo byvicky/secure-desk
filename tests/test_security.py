@@ -331,3 +331,43 @@ def test_agents_only_read_tickets_assigned_to_them(client):
     assert other_login.status_code == 200
     assert client.get("/api/tickets").json() == []
     assert client.get(f"/api/tickets/{ticket_id}").status_code == 404
+
+
+
+def test_agent_dashboard_and_assignable_users_are_scoped(client):
+    agent = database.create_user("stats-agent", hash_password("stats-agent-password-123"), "agent")
+    database.create_user("stats-admin", hash_password("stats-admin-password-123"), "admin")
+    login = client.post("/api/login", json={
+        "username": "stats-admin", "password": "stats-admin-password-123"
+    })
+    headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+    own = client.post("/api/tickets", headers=headers, json={
+        "requester": "Solicitante", "title": "Chamado do agente",
+        "description": "Descrição do chamado que será atribuído.", "category": "acesso"
+    })
+    other = client.post("/api/tickets", headers=headers, json={
+        "requester": "Outra pessoa", "title": "Chamado de outro agente",
+        "description": "Descrição de outro chamado.", "category": "hardware"
+    })
+    assert own.status_code == other.status_code == 201
+    assert client.post(f"/api/tickets/{own.json()['id']}/assignment",
+                       headers=headers, json={"user_id": agent["id"]}).status_code == 200
+
+    agent_login = client.post("/api/login", json={
+        "username": "stats-agent", "password": "stats-agent-password-123"
+    })
+    assert agent_login.status_code == 200
+    stats = client.get("/api/dashboard/stats").json()
+    assert stats == {"total": 1, "open": 1, "urgent": 0, "resolved": 0}
+    assert client.get("/api/users/assignable").status_code == 403
+
+
+def test_strict_active_flag_and_positive_identifiers(client):
+    database.create_user("validation-admin", hash_password("validation-admin-password-123"), "admin")
+    login = client.post("/api/login", json={
+        "username": "validation-admin", "password": "validation-admin-password-123"
+    })
+    headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+    assert client.patch("/api/users/1/active", headers=headers, json={"active": "false"}).status_code == 422
+    assert client.get("/api/tickets/0").status_code == 422
+    assert client.post("/api/tickets/1/assignment", headers=headers, json={"user_id": 0}).status_code == 422
