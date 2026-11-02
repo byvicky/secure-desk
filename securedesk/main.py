@@ -36,8 +36,9 @@ from securedesk.triage import analyze
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("securedesk")
-limiter = RateLimiter(settings.rate_limit)
-login_limiter = RateLimiter(limit=5, window_seconds=900)
+rate_limit_db = f"{settings.database}.ratelimit"
+limiter = RateLimiter(settings.rate_limit, storage_path=rate_limit_db)
+login_limiter = RateLimiter(limit=5, window_seconds=900, storage_path=rate_limit_db)
 
 
 class LoginRequest(BaseModel):
