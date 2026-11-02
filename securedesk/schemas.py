@@ -44,7 +44,7 @@ class TicketOut(BaseModel):
 
 class TicketAssignment(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    user_id: int | None
+    user_id: int | None = Field(ge=1)
 
 
 class TicketCommentCreate(BaseModel):
