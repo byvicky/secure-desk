@@ -57,6 +57,10 @@ class UserCreate(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.production and len(settings.session_secret) < 32:
+        raise RuntimeError(
+            "SECUREDESK_SESSION_SECRET deve ter pelo menos 32 caracteres em produção."
+        )
     database.initialize()
     if settings.admin_password:
         database.ensure_bootstrap_admin(settings.admin_username, hash_password(settings.admin_password))
