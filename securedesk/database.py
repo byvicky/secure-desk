@@ -143,13 +143,16 @@ def create_ticket(data: dict[str, Any], actor: dict | None = None) -> dict[str, 
 
 def list_tickets(limit: int = 50, status: str | None = None,
                  category: str | None = None, priority: str | None = None,
-                 search: str | None = None):
+                 search: str | None = None, assigned_to: int | None = None):
     clauses = []
     values: list[Any] = []
     for column, value in (("status", status), ("category", category), ("priority", priority)):
         if value is not None:
             clauses.append(f"{column}=?")
             values.append(value)
+    if assigned_to is not None:
+        clauses.append("assigned_to=?")
+        values.append(assigned_to)
     if search and search.strip():
         clauses.append("(title LIKE ? OR description LIKE ? OR requester LIKE ?)")
         term = f"%{search.strip()}%"
