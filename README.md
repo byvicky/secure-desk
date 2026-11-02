@@ -43,7 +43,7 @@ O SecureDesk busca:
 | API autenticável | Suporta chave Bearer e sessão web assinada no servidor. |
 | Login individual | Contas próprias com senha armazenada por hash PBKDF2 e sessão em cookie HttpOnly. |
 | Perfis de acesso | Perfis admin e agent; somente administradores gerenciam usuários. |
-| Limite de requisições | Aplica rate limiting básico por endereço de origem. |
+| Limite de requisições | Rate limiting por janela deslizante, compartilhado entre processos via SQLite. |
 | Auditoria | Registra criação e mudanças de status. |
 | Interface web | Permite registrar, pesquisar e acompanhar chamados em uma interface responsiva. |\n| Atribuição e comentários | Permite atribuir chamados a usuários ativos e registrar comentários. |\n| Administração de contas | Permite desativar e reativar contas, protegendo o último administrador ativo. |\n| Indicadores | Exibe totais gerais de chamados, urgentes e resolvidos. |
 
@@ -138,7 +138,7 @@ Gere uma chave forte:
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PASSWORD` criam a conta administradora caso ainda não exista um administrador. A senha deve ter pelo menos 12 caracteres. Cada conta recebe usuário, hash PBKDF2 com salt individual e perfil `admin` ou `agent`. O administrador autenticado pode criar contas pela interface ou por `/api/users`, listar usuários e ativar/desativar contas; o sistema impede desativar a própria conta ou o último administrador ativo. Agentes não podem gerenciar usuários. O servidor cria uma sessão assinada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` em produção. Alterações autenticadas via navegador exigem token CSRF vinculado à sessão. O login limita a cinco tentativas por combinação de IP e usuário em uma janela de 15 minutos; o bloqueio é mantido em memória e não substitui controles distribuídos. Clientes de API também podem usar `Authorization: Bearer <chave>`. Gere valores aleatórios fortes para `SECUREDESK_API_KEY` e `SECUREDESK_SESSION_SECRET`. Não coloque segredos no frontend nem faça commit do arquivo `.env`. Em desenvolvimento, sem senha de administrador configurada, o painel permanece aberto para uso local.
+Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PASSWORD` criam a conta administradora caso ainda não exista um administrador. A senha deve ter pelo menos 12 caracteres. Cada conta recebe usuário, hash PBKDF2 com salt individual e perfil `admin` ou `agent`. O administrador autenticado pode criar contas pela interface ou por `/api/users`, listar usuários e ativar/desativar contas; o sistema impede desativar a própria conta ou o último administrador ativo. Agentes não podem gerenciar usuários. O servidor cria uma sessão assinada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` em produção. Alterações autenticadas via navegador exigem token CSRF vinculado à sessão. O login limita a cinco tentativas por combinação de IP e usuário em uma janela de 15 minutos; o estado do limite é compartilhado entre processos por SQLite. Clientes de API também podem usar `Authorization: Bearer <chave>`. Gere valores aleatórios fortes para `SECUREDESK_API_KEY` e `SECUREDESK_SESSION_SECRET`. Não coloque segredos no frontend nem faça commit do arquivo `.env`. Em desenvolvimento, sem senha de administrador configurada, o painel permanece aberto para uso local.
 
 ### Limitações conhecidas
 
@@ -159,7 +159,7 @@ pytest
 - [x] Login web com sessão assinada e cookie protegido.
 - [x] Autenticação individual e perfis básicos de acesso.
 - [ ] Integração opcional com LLM usando minimização de dados.
-- [ ] Histórico detalhado e filtros na interface.
+- [x] Filtros de chamados e histórico de auditoria disponíveis na API; a experiência visual detalhada ainda pode evoluir.
 - [x] Testes de integração, navegador e análise estática no CI.\n- [x] Limitação básica de tentativas de login e proteção CSRF para sessões web.\n- [x] Atribuição de chamados a usuários ativos.\n- [x] Comentários por chamado.\n- [x] Histórico de auditoria com identificação do usuário que realizou a ação.
 - [ ] Revisão de segurança e documentação de implantação.
 
