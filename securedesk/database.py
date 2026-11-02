@@ -266,15 +266,17 @@ def set_user_active(user_id: int, active: bool, actor_id: int):
         return dict(row), None
 
 
-def ticket_stats():
+def ticket_stats(assigned_to: int | None = None):
+    where = "WHERE assigned_to=?" if assigned_to is not None else ""
+    params = (assigned_to,) if assigned_to is not None else ()
     with get_db() as db:
-        row = db.execute("""
+        row = db.execute(f"""
             SELECT COUNT(*) AS total,
                    SUM(CASE WHEN status='aberto' THEN 1 ELSE 0 END) AS open,
                    SUM(CASE WHEN priority IN ('alta','critica') THEN 1 ELSE 0 END) AS urgent,
                    SUM(CASE WHEN status='resolvido' THEN 1 ELSE 0 END) AS resolved
-            FROM tickets
-        """).fetchone()
+            FROM tickets {where}
+        """, params).fetchone()
         return {key: row[key] or 0 for key in ("total", "open", "urgent", "resolved")}
 
 
