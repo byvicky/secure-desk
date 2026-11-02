@@ -4,7 +4,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,7 +47,7 @@ class LoginRequest(BaseModel):
 
 
 class UserActiveRequest(BaseModel):
-    active: bool
+    active: bool = Field(strict=True)
 
 
 class UserCreate(BaseModel):
@@ -172,7 +172,7 @@ def users():
 
 
 @app.patch("/api/users/{user_id}/active", dependencies=[Depends(require_admin), Depends(verify_csrf)])
-def update_user_active(user_id: int, payload: UserActiveRequest,
+def update_user_active(user_id: Annotated[int, Path(ge=1)], payload: UserActiveRequest,
                        actor: Annotated[dict, Depends(get_current_user)]):
     result, error = database.set_user_active(user_id, payload.active, actor["id"])
     if error == "not_found":
@@ -185,8 +185,9 @@ def update_user_active(user_id: int, payload: UserActiveRequest,
 
 
 @app.get("/api/dashboard/stats", dependencies=[Depends(get_current_user)])
-def dashboard_stats():
-    return database.ticket_stats()
+def dashboard_stats(user: Annotated[dict, Depends(get_current_user)]):
+    assigned_to = user["id"] if user["role"] == "agent" else None
+    return database.ticket_stats(assigned_to)
 
 
 @app.post("/api/users", status_code=201, dependencies=[Depends(require_admin), Depends(verify_csrf)])
@@ -221,7 +222,7 @@ def tickets(user: Annotated[dict, Depends(get_current_user)],
 
 
 @app.get("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user)])
-def ticket_detail(ticket_id: int, user: Annotated[dict, Depends(get_current_user)]):
+def ticket_detail(ticket_id: Annotated[int, Path(ge=1)], user: Annotated[dict, Depends(get_current_user)]):
     result = database.get_ticket(ticket_id)
     if result is None or (user["role"] == "agent" and result["assigned_to"] != user["id"]):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
@@ -229,7 +230,7 @@ def ticket_detail(ticket_id: int, user: Annotated[dict, Depends(get_current_user
 
 
 @app.get("/api/tickets/{ticket_id}/history", dependencies=[Depends(get_current_user)])
-def ticket_history(ticket_id: int, user: Annotated[dict, Depends(get_current_user)]):
+def ticket_history(ticket_id: Annotated[int, Path(ge=1)], user: Annotated[dict, Depends(get_current_user)]):
     ticket = database.get_ticket(ticket_id)
     if ticket is None or (user["role"] == "agent" and ticket["assigned_to"] != user["id"]):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
@@ -237,7 +238,7 @@ def ticket_history(ticket_id: int, user: Annotated[dict, Depends(get_current_use
 
 
 @app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(verify_csrf)])
-def change_ticket_status(ticket_id: int, payload: TicketUpdate, user: Annotated[dict, Depends(get_current_user)]):
+def change_ticket_status(ticket_id: Annotated[int, Path(ge=1)], payload: TicketUpdate, user: Annotated[dict, Depends(get_current_user)]):
     ticket = database.get_ticket(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
@@ -249,13 +250,13 @@ def change_ticket_status(ticket_id: int, payload: TicketUpdate, user: Annotated[
     return result
 
 
-@app.get("/api/users/assignable", dependencies=[Depends(get_current_user)])
+@app.get("/api/users/assignable", dependencies=[Depends(require_admin)])
 def assignable_users():
     return database.list_assignable_users()
 
 
 @app.post("/api/tickets/{ticket_id}/assignment", dependencies=[Depends(require_admin), Depends(verify_csrf)])
-def assign_ticket(ticket_id: int, payload: TicketAssignment, user: Annotated[dict, Depends(get_current_user)]):
+def assign_ticket(ticket_id: Annotated[int, Path(ge=1)], payload: TicketAssignment, user: Annotated[dict, Depends(get_current_user)]):
     result = database.assign_ticket(ticket_id, payload.user_id, user)
     if result is None:
         raise HTTPException(status_code=404, detail="Chamado ou usuário ativo não encontrado.")
@@ -263,7 +264,7 @@ def assign_ticket(ticket_id: int, payload: TicketAssignment, user: Annotated[dic
 
 
 @app.get("/api/tickets/{ticket_id}/comments", dependencies=[Depends(get_current_user)])
-def ticket_comments(ticket_id: int, user: Annotated[dict, Depends(get_current_user)]):
+def ticket_comments(ticket_id: Annotated[int, Path(ge=1)], user: Annotated[dict, Depends(get_current_user)]):
     ticket = database.get_ticket(ticket_id)
     if ticket is None or (user["role"] == "agent" and ticket["assigned_to"] != user["id"]):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
@@ -271,7 +272,7 @@ def ticket_comments(ticket_id: int, user: Annotated[dict, Depends(get_current_us
 
 
 @app.post("/api/tickets/{ticket_id}/comments", status_code=201, dependencies=[Depends(verify_csrf)])
-def add_ticket_comment(ticket_id: int, payload: TicketCommentCreate, user: Annotated[dict, Depends(get_current_user)]):
+def add_ticket_comment(ticket_id: Annotated[int, Path(ge=1)], payload: TicketCommentCreate, user: Annotated[dict, Depends(get_current_user)]):
     ticket = database.get_ticket(ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
