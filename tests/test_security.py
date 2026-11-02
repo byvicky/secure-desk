@@ -150,3 +150,28 @@ def test_production_requires_strong_session_secret(monkeypatch, tmp_path):
     monkeypatch.setattr(database, "settings", SimpleNamespace(database=str(tmp_path / "prod.db")))
     with pytest.raises(RuntimeError, match="SECUREDESK_SESSION_SECRET"), TestClient(app):
         pass
+
+
+def test_concurrent_deactivation_cannot_remove_all_active_admins(client):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    first = database.create_user("first-admin", hash_password("first-admin-password-123"), "admin")
+    second = database.create_user("second-admin", hash_password("second-admin-password-123"), "admin")
+    actor = database.create_user("operator-agent", hash_password("operator-password-123"), "agent")
+    barrier = Barrier(2)
+
+    def deactivate(user_id):
+        barrier.wait()
+        return database.set_user_active(user_id, False, actor["id"])
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(deactivate, [first["id"], second["id"]]))
+
+    assert sum(error is None for _, error in results) == 1
+    assert sum(error == "last_admin" for _, error in results) == 1
+    with database.get_db() as db:
+        active_admins = db.execute(
+            "SELECT COUNT(*) FROM users WHERE role='admin' AND active=1"
+        ).fetchone()[0]
+    assert active_admins == 1
