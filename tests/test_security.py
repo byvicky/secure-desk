@@ -127,8 +127,6 @@ def test_deactivated_user_session_is_rejected(client):
 
 
 def test_password_verification_rejects_unsafe_hash_parameters(monkeypatch):
-    import hashlib
-
     # Invalid iteration counts must be rejected before PBKDF2 is invoked.
     def forbidden_pbkdf2(*args, **kwargs):
         raise AssertionError("PBKDF2 must not run for an unsafe stored hash")
@@ -140,14 +138,14 @@ def test_password_verification_rejects_unsafe_hash_parameters(monkeypatch):
 
 
 def test_production_requires_strong_session_secret(monkeypatch, tmp_path):
-    from types import SimpleNamespace
     from fastapi.testclient import TestClient
+    from types import SimpleNamespace
+
     from securedesk import main
 
     monkeypatch.setattr(main, "settings", SimpleNamespace(
         production=True, session_secret="weak", admin_password="", admin_username="admin"
     ))
     monkeypatch.setattr(database, "settings", SimpleNamespace(database=str(tmp_path / "prod.db")))
-    with pytest.raises(RuntimeError, match="SECUREDESK_SESSION_SECRET"):
-        with TestClient(app):
-            pass
+    with pytest.raises(RuntimeError, match="SECUREDESK_SESSION_SECRET"), TestClient(app):
+        pass
