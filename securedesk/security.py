@@ -47,7 +47,12 @@ def redact_sensitive_data(value: str) -> str:
 def get_current_user(request: Request) -> dict:
     user = request.session.get("user")
     if user and isinstance(user, dict) and user.get("id") and user.get("role") in {"admin", "agent"}:
-        return user
+        from securedesk.database import get_user_by_id
+
+        current = get_user_by_id(user["id"])
+        if current and current["active"] and current["role"] == user["role"]:
+            return {"id": current["id"], "username": current["username"], "role": current["role"]}
+        request.session.clear()
     if not settings.production and not settings.web_password and not getattr(settings, "admin_password", ""):
         return {"id": 0, "username": "local-dev", "role": "admin"}
     supplied = request.headers.get("Authorization", "")
