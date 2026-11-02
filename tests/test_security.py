@@ -282,7 +282,7 @@ def test_agents_only_read_tickets_assigned_to_them(client):
     assigned_agent = database.create_user(
         "assigned-reader", hash_password("assigned-reader-password-123"), "agent"
     )
-    other_agent = database.create_user(
+    database.create_user(
         "other-reader", hash_password("other-reader-password-123"), "agent"
     )
     database.create_user("reader-admin", hash_password("reader-admin-password-123"), "admin")
