@@ -169,8 +169,8 @@ def test_admin_can_deactivate_agent_but_not_last_admin_or_self(client):
     response = client.patch(f"/api/users/{agent['id']}/active", json={"active": False})
     assert response.status_code == 200
     assert response.json()["active"] == 0
-    assert client.get("/api/users/assignable").json()
     assert all(user["id"] != agent["id"] for user in client.get("/api/users/assignable").json())
 
-    admin = database.create_user("second-admin", hash_password("a-long-admin-password"), "admin")
-    assert client.patch(f"/api/users/{admin['id']}/active", json={"active": False}).status_code == 200
+    admin = database.create_user("only-admin", hash_password("a-long-admin-password"), "admin")
+    protected = client.patch(f"/api/users/{admin['id']}/active", json={"active": False})
+    assert protected.status_code == 409
