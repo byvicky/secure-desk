@@ -209,3 +209,17 @@ def test_all_cookie_write_routes_require_csrf(client):
     for method, path, payload in write_requests:
         response = getattr(client, method)(path, json=payload) if payload is not None else client.post(path)
         assert response.status_code == 403, f"{method.upper()} {path} não exigiu CSRF"
+
+
+def test_rate_limiter_is_shared_between_instances(tmp_path, monkeypatch):
+    clock = [1_000.0]
+    monkeypatch.setattr("securedesk.security.time.time", lambda: clock[0])
+    storage = str(tmp_path / "shared-rate-limit.db")
+    first_worker = RateLimiter(limit=2, window_seconds=60, storage_path=storage)
+    second_worker = RateLimiter(limit=2, window_seconds=60, storage_path=storage)
+
+    assert first_worker.check("shared-client")
+    assert second_worker.check("shared-client")
+    assert not first_worker.check("shared-client")
+    clock[0] += 61
+    assert second_worker.check("shared-client")
