@@ -211,11 +211,11 @@ def submit_ticket(payload: TicketCreate, user: Annotated[dict, Depends(get_curre
 
 
 @app.get("/api/tickets", response_model=list[TicketOut], dependencies=[Depends(get_current_user)])
-def tickets(limit: int = Query(default=50, ge=1, le=100),
+def tickets(user: Annotated[dict, Depends(get_current_user)],
+            limit: int = Query(default=50, ge=1, le=100),
             search: str | None = Query(default=None, min_length=1, max_length=100),
             status_filter: Annotated[Status | None, Query(alias="status")] = None,
-            category: Category | None = None, priority: Priority | None = None,
-            user: Annotated[dict, Depends(get_current_user)]):
+            category: Category | None = None, priority: Priority | None = None):
     assigned_to = user["id"] if user["role"] == "agent" else None
     return database.list_tickets(limit, status_filter, category, priority, search, assigned_to)
 
