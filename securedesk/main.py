@@ -214,21 +214,24 @@ def submit_ticket(payload: TicketCreate, user: Annotated[dict, Depends(get_curre
 def tickets(limit: int = Query(default=50, ge=1, le=100),
             search: str | None = Query(default=None, min_length=1, max_length=100),
             status_filter: Annotated[Status | None, Query(alias="status")] = None,
-            category: Category | None = None, priority: Priority | None = None):
-    return database.list_tickets(limit, status_filter, category, priority, search)
+            category: Category | None = None, priority: Priority | None = None,
+            user: Annotated[dict, Depends(get_current_user)] = None):
+    assigned_to = user["id"] if user["role"] == "agent" else None
+    return database.list_tickets(limit, status_filter, category, priority, search, assigned_to)
 
 
 @app.get("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user)])
-def ticket_detail(ticket_id: int):
+def ticket_detail(ticket_id: int, user: Annotated[dict, Depends(get_current_user)]):
     result = database.get_ticket(ticket_id)
-    if result is None:
+    if result is None or (user["role"] == "agent" and result["assigned_to"] != user["id"]):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
     return result
 
 
 @app.get("/api/tickets/{ticket_id}/history", dependencies=[Depends(get_current_user)])
-def ticket_history(ticket_id: int):
-    if database.get_ticket(ticket_id) is None:
+def ticket_history(ticket_id: int, user: Annotated[dict, Depends(get_current_user)]):
+    ticket = database.get_ticket(ticket_id)
+    if ticket is None or (user["role"] == "agent" and ticket["assigned_to"] != user["id"]):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
     return database.get_ticket_history(ticket_id)
 
@@ -260,8 +263,9 @@ def assign_ticket(ticket_id: int, payload: TicketAssignment, user: Annotated[dic
 
 
 @app.get("/api/tickets/{ticket_id}/comments", dependencies=[Depends(get_current_user)])
-def ticket_comments(ticket_id: int):
-    if database.get_ticket(ticket_id) is None:
+def ticket_comments(ticket_id: int, user: Annotated[dict, Depends(get_current_user)]):
+    ticket = database.get_ticket(ticket_id)
+    if ticket is None or (user["role"] == "agent" and ticket["assigned_to"] != user["id"]):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
     return database.list_comments(ticket_id)
 
