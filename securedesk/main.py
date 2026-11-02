@@ -45,6 +45,10 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class UserActiveRequest(BaseModel):
+    active: bool
+
+
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=80, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(min_length=12, max_length=256)
@@ -158,6 +162,24 @@ def users():
     return database.list_users()
 
 
+@app.patch("/api/users/{user_id}/active", dependencies=[Depends(require_admin), Depends(verify_csrf)])
+def update_user_active(user_id: int, payload: UserActiveRequest,
+                       actor: Annotated[dict, Depends(get_current_user)]):
+    result, error = database.set_user_active(user_id, payload.active, actor["id"])
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if error == "self":
+        raise HTTPException(status_code=400, detail="Você não pode desativar sua própria conta.")
+    if error == "last_admin":
+        raise HTTPException(status_code=409, detail="Não é possível desativar o último administrador ativo.")
+    return result
+
+
+@app.get("/api/dashboard/stats", dependencies=[Depends(get_current_user)])
+def dashboard_stats():
+    return database.ticket_stats()
+
+
 @app.post("/api/users", status_code=201, dependencies=[Depends(require_admin), Depends(verify_csrf)])
 def create_user(payload: UserCreate):
     try:
@@ -181,9 +203,10 @@ def submit_ticket(payload: TicketCreate, user: Annotated[dict, Depends(get_curre
 
 @app.get("/api/tickets", response_model=list[TicketOut], dependencies=[Depends(get_current_user)])
 def tickets(limit: int = Query(default=50, ge=1, le=100),
+            search: str | None = Query(default=None, min_length=1, max_length=100),
             status_filter: Annotated[Status | None, Query(alias="status")] = None,
             category: Category | None = None, priority: Priority | None = None):
-    return database.list_tickets(limit, status_filter, category, priority)
+    return database.list_tickets(limit, status_filter, category, priority, search)
 
 
 @app.get("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user)])
