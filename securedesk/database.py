@@ -270,3 +270,11 @@ def ticket_stats():
             FROM tickets
         """).fetchone()
         return {key: row[key] or 0 for key in ("total", "open", "urgent", "resolved")}
+
+
+def get_user_by_id(user_id: int):
+    with get_db() as db:
+        row = db.execute(
+            "SELECT id,username,role,active FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        return dict(row) if row else None
