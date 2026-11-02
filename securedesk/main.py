@@ -233,8 +233,13 @@ def ticket_history(ticket_id: int):
     return database.get_ticket_history(ticket_id)
 
 
-@app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(get_current_user), Depends(verify_csrf)])
+@app.patch("/api/tickets/{ticket_id}", response_model=TicketOut, dependencies=[Depends(verify_csrf)])
 def change_ticket_status(ticket_id: int, payload: TicketUpdate, user: Annotated[dict, Depends(get_current_user)]):
+    ticket = database.get_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+    if user["role"] == "agent" and ticket["assigned_to"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Agentes só podem atualizar chamados atribuídos a eles.")
     result = database.update_status(ticket_id, payload.status, actor=user)
     if result is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
@@ -246,7 +251,7 @@ def assignable_users():
     return database.list_assignable_users()
 
 
-@app.post("/api/tickets/{ticket_id}/assignment", dependencies=[Depends(get_current_user), Depends(verify_csrf)])
+@app.post("/api/tickets/{ticket_id}/assignment", dependencies=[Depends(require_admin), Depends(verify_csrf)])
 def assign_ticket(ticket_id: int, payload: TicketAssignment, user: Annotated[dict, Depends(get_current_user)]):
     result = database.assign_ticket(ticket_id, payload.user_id, user)
     if result is None:
@@ -261,8 +266,13 @@ def ticket_comments(ticket_id: int):
     return database.list_comments(ticket_id)
 
 
-@app.post("/api/tickets/{ticket_id}/comments", status_code=201, dependencies=[Depends(get_current_user), Depends(verify_csrf)])
+@app.post("/api/tickets/{ticket_id}/comments", status_code=201, dependencies=[Depends(verify_csrf)])
 def add_ticket_comment(ticket_id: int, payload: TicketCommentCreate, user: Annotated[dict, Depends(get_current_user)]):
+    ticket = database.get_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+    if user["role"] == "agent" and ticket["assigned_to"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Agentes só podem comentar em chamados atribuídos a eles.")
     comment = database.add_comment(ticket_id, redact_sensitive_data(payload.body), user)
     if comment is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
