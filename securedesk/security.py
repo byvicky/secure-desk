@@ -29,10 +29,18 @@ def verify_password(password: str, encoded: str) -> bool:
         algorithm, iterations, salt_hex, digest_hex = encoded.split("$")
         if algorithm != "pbkdf2_sha256":
             return False
+        iteration_count = int(iterations)
+        salt = bytes.fromhex(salt_hex)
+        expected_digest = bytes.fromhex(digest_hex)
+        # Bound attacker-controlled hash parameters before performing expensive work.
+        if not 100_000 <= iteration_count <= 1_000_000:
+            return False
+        if len(salt) != 16 or len(expected_digest) != 32:
+            return False
         digest = hashlib.pbkdf2_hmac(
-            "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
+            "sha256", password.encode(), salt, iteration_count
         )
-        return hmac.compare_digest(digest.hex(), digest_hex)
+        return hmac.compare_digest(digest, expected_digest)
     except (ValueError, TypeError):
         return False
 
