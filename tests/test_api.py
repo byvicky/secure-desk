@@ -147,3 +147,30 @@ def test_assignment_rejects_inactive_or_missing_user(client):
         f"/api/tickets/{created['id']}/assignment", json={"user_id": 9999}
     )
     assert response.status_code == 404
+
+
+def test_ticket_search_and_dashboard_stats(client):
+    match = ticket(client, "Erro no acesso ao portal", "Falha ao entrar no portal interno.")
+    ticket(client, "Teclado sem resposta", "O teclado parou de funcionar.")
+    response = client.get("/api/tickets?search=portal")
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [match["id"]]
+
+    stats = client.get("/api/dashboard/stats")
+    assert stats.status_code == 200
+    assert stats.json()["total"] >= 2
+    assert stats.json()["open"] >= 2
+
+
+def test_admin_can_deactivate_agent_but_not_last_admin_or_self(client):
+    from securedesk.security import hash_password
+
+    agent = database.create_user("deactivate-agent", hash_password("a-long-agent-password"), "agent")
+    response = client.patch(f"/api/users/{agent['id']}/active", json={"active": False})
+    assert response.status_code == 200
+    assert response.json()["active"] == 0
+    assert client.get("/api/users/assignable").json()
+    assert all(user["id"] != agent["id"] for user in client.get("/api/users/assignable").json())
+
+    admin = database.create_user("second-admin", hash_password("a-long-admin-password"), "admin")
+    assert client.patch(f"/api/users/{admin['id']}/active", json={"active": False}).status_code == 200
