@@ -275,3 +275,59 @@ def test_agent_can_only_work_on_assigned_tickets(client):
         f"/api/tickets/{ticket_id}/assignment", headers=other_headers,
         json={"user_id": other_agent["id"]}
     ).status_code == 403
+
+
+
+def test_agents_only_read_tickets_assigned_to_them(client):
+    assigned_agent = database.create_user(
+        "assigned-reader", hash_password("assigned-reader-password-123"), "agent"
+    )
+    other_agent = database.create_user(
+        "other-reader", hash_password("other-reader-password-123"), "agent"
+    )
+    database.create_user("reader-admin", hash_password("reader-admin-password-123"), "admin")
+    admin_login = client.post("/api/login", json={
+        "username": "reader-admin", "password": "reader-admin-password-123"
+    })
+    admin_headers = {"X-CSRF-Token": admin_login.json()["csrf_token"]}
+
+    first = client.post("/api/tickets", headers=admin_headers, json={
+        "requester": "Pessoa solicitante", "title": "Chamado atribuído",
+        "description": "Descrição do chamado atribuído ao agente.", "category": "acesso"
+    })
+    second = client.post("/api/tickets", headers=admin_headers, json={
+        "requester": "Outra pessoa", "title": "Chamado privado",
+        "description": "Descrição de outro chamado sem atribuição.", "category": "hardware"
+    })
+    assert first.status_code == 201
+    assert second.status_code == 201
+    ticket_id = first.json()["id"]
+    hidden_ticket_id = second.json()["id"]
+    assigned = client.post(
+        f"/api/tickets/{ticket_id}/assignment", headers=admin_headers,
+        json={"user_id": assigned_agent["id"]}
+    )
+    assert assigned.status_code == 200
+
+    agent_login = client.post("/api/login", json={
+        "username": "assigned-reader", "password": "assigned-reader-password-123"
+    })
+    assert agent_login.status_code == 200
+    visible = client.get("/api/tickets")
+    assert visible.status_code == 200
+    assert [ticket["id"] for ticket in visible.json()] == [ticket_id]
+
+    assert client.get(f"/api/tickets/{ticket_id}").status_code == 200
+    assert client.get(f"/api/tickets/{ticket_id}/history").status_code == 200
+    assert client.get(f"/api/tickets/{ticket_id}/comments").status_code == 200
+
+    assert client.get(f"/api/tickets/{hidden_ticket_id}").status_code == 404
+    assert client.get(f"/api/tickets/{hidden_ticket_id}/history").status_code == 404
+    assert client.get(f"/api/tickets/{hidden_ticket_id}/comments").status_code == 404
+
+    other_login = client.post("/api/login", json={
+        "username": "other-reader", "password": "other-reader-password-123"
+    })
+    assert other_login.status_code == 200
+    assert client.get("/api/tickets").json() == []
+    assert client.get(f"/api/tickets/{ticket_id}").status_code == 404
