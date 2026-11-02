@@ -3,8 +3,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from securedesk import database, security
-from securedesk import main
+from securedesk import database, main, security
 from securedesk.main import app
 from securedesk.security import RateLimiter, hash_password, redact_sensitive_data, verify_password
 
