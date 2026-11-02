@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from securedesk import database, security
+from securedesk import main
 from securedesk.main import app
 from securedesk.security import RateLimiter, hash_password, redact_sensitive_data, verify_password
 
@@ -12,6 +13,8 @@ from securedesk.security import RateLimiter, hash_password, redact_sensitive_dat
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "settings", SimpleNamespace(database=str(tmp_path / "auth.db")))
     monkeypatch.setattr(security, "settings", SimpleNamespace(production=True, api_key="test-secret", web_password=""))
+    # Keep the global request limiter isolated from unrelated test traffic.
+    monkeypatch.setattr(main, "limiter", RateLimiter(limit=1000, window_seconds=60))
     with TestClient(app) as test_client:
         yield test_client
 
