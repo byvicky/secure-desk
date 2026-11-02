@@ -240,6 +240,9 @@ def get_ticket_history(ticket_id: int):
 
 def set_user_active(user_id: int, active: bool, actor_id: int):
     with get_db() as db:
+        # Serialize admin deactivation checks so concurrent requests cannot
+        # both observe themselves as the last active administrator.
+        db.execute("BEGIN IMMEDIATE")
         target = db.execute(
             "SELECT id,username,role,active FROM users WHERE id=?", (user_id,)
         ).fetchone()
