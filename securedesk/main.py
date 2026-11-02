@@ -230,7 +230,7 @@ def ticket_comments(ticket_id: int):
 
 
 @app.post("/api/tickets/{ticket_id}/comments", status_code=201, dependencies=[Depends(get_current_user), Depends(verify_csrf)])
-def add_ticket_comment(ticket_id: int, payload: TicketCommentCreate, user: dict = Depends(get_current_user)):
+def add_ticket_comment(ticket_id: int, payload: TicketCommentCreate, user: Annotated[dict, Depends(get_current_user)]):
     comment = database.add_comment(ticket_id, redact_sensitive_data(payload.body), user)
     if comment is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
