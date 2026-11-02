@@ -2,8 +2,10 @@ import hashlib
 import hmac
 import re
 import secrets
+import sqlite3
 import time
 from collections import defaultdict, deque
+from pathlib import Path
 from threading import Lock
 
 from fastapi import Depends, HTTPException, Request, status
@@ -102,19 +104,58 @@ def verify_api_key(request: Request) -> None:
 
 
 class RateLimiter:
-    """In-memory request limiter for a single application process."""
+    """Atomic sliding-window limiter; SQLite storage can be shared by worker processes."""
 
-    def __init__(self, limit: int, window_seconds: int = 60):
+    def __init__(self, limit: int, window_seconds: int = 60, storage_path: str | None = None):
         self.limit = limit
         self.window = window_seconds
+        self.storage_path = storage_path
         self.events = defaultdict(deque)
         self.lock = Lock()
+        if self.storage_path:
+            path = Path(self.storage_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(path, timeout=10) as db:
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS rate_limit_events "
+                    "(bucket TEXT NOT NULL, occurred_at REAL NOT NULL)"
+                )
+                db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_rate_limit_bucket_time "
+                    "ON rate_limit_events(bucket, occurred_at)"
+                )
 
     def reset(self, key: str) -> None:
+        if self.storage_path:
+            with sqlite3.connect(self.storage_path, timeout=10) as db:
+                db.execute("DELETE FROM rate_limit_events WHERE bucket=?", (key,))
+            return
         with self.lock:
             self.events.pop(key, None)
 
     def check(self, key: str) -> bool:
+        if self.storage_path:
+            now = time.time()
+            cutoff = now - self.window
+            with sqlite3.connect(self.storage_path, timeout=10, isolation_level=None) as db:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute(
+                    "DELETE FROM rate_limit_events WHERE bucket=? AND occurred_at<=?",
+                    (key, cutoff),
+                )
+                count = db.execute(
+                    "SELECT COUNT(*) FROM rate_limit_events WHERE bucket=?", (key,)
+                ).fetchone()[0]
+                if count >= self.limit:
+                    db.execute("COMMIT")
+                    return False
+                db.execute(
+                    "INSERT INTO rate_limit_events(bucket,occurred_at) VALUES(?,?)",
+                    (key, now),
+                )
+                db.execute("COMMIT")
+                return True
+
         now = time.monotonic()
         with self.lock:
             events = self.events[key]
