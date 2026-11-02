@@ -223,3 +223,55 @@ def test_rate_limiter_is_shared_between_instances(tmp_path, monkeypatch):
     assert not first_worker.check("shared-client")
     clock[0] += 61
     assert second_worker.check("shared-client")
+
+
+def test_agent_can_only_work_on_assigned_tickets(client):
+    own_agent = database.create_user("own-agent", hash_password("own-agent-password-123"), "agent")
+    other_agent = database.create_user("other-agent", hash_password("other-agent-password-123"), "agent")
+    admin = database.create_user("ticket-admin", hash_password("ticket-admin-password-123"), "admin")
+    admin_login = client.post("/api/login", json={
+        "username": "ticket-admin", "password": "ticket-admin-password-123"
+    })
+    assert admin_login.status_code == 200
+    csrf_admin = {"X-CSRF-Token": admin_login.json()["csrf_token"]}
+    created = client.post("/api/tickets", headers=csrf_admin, json={
+        "requester": "Solicitante", "title": "Acesso ao ambiente", 
+        "description": "Não consigo acessar o ambiente de homologação.", "category": "acesso"
+    })
+    assert created.status_code == 201
+    ticket_id = created.json()["id"]
+    assigned = client.post(
+        f"/api/tickets/{ticket_id}/assignment", headers=csrf_admin,
+        json={"user_id": own_agent["id"]}
+    )
+    assert assigned.status_code == 200
+
+    own_login = client.post("/api/login", json={
+        "username": "own-agent", "password": "own-agent-password-123"
+    })
+    assert own_login.status_code == 200
+    own_headers = {"X-CSRF-Token": own_login.json()["csrf_token"]}
+    assert client.patch(
+        f"/api/tickets/{ticket_id}", headers=own_headers, json={"status": "em_andamento"}
+    ).status_code == 200
+    assert client.post(
+        f"/api/tickets/{ticket_id}/comments", headers=own_headers,
+        json={"body": "Estou verificando o acesso."}
+    ).status_code == 201
+
+    other_login = client.post("/api/login", json={
+        "username": "other-agent", "password": "other-agent-password-123"
+    })
+    assert other_login.status_code == 200
+    other_headers = {"X-CSRF-Token": other_login.json()["csrf_token"]}
+    assert client.patch(
+        f"/api/tickets/{ticket_id}", headers=other_headers, json={"status": "resolvido"}
+    ).status_code == 403
+    assert client.post(
+        f"/api/tickets/{ticket_id}/comments", headers=other_headers,
+        json={"body": "Comentário não autorizado."}
+    ).status_code == 403
+    assert client.post(
+        f"/api/tickets/{ticket_id}/assignment", headers=other_headers,
+        json={"user_id": other_agent["id"]}
+    ).status_code == 403
