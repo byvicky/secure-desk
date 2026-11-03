@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from securedesk import database
 from securedesk.main import app
+from securedesk.security import redact_sensitive_data
 
 
 @pytest.fixture
