@@ -124,6 +124,10 @@ class RateLimiter:
                     "CREATE INDEX IF NOT EXISTS idx_rate_limit_bucket_time "
                     "ON rate_limit_events(bucket, occurred_at)"
                 )
+                db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_rate_limit_occurred_at "
+                    "ON rate_limit_events(occurred_at)"
+                )
 
     def reset(self, key: str) -> None:
         if self.storage_path:
@@ -139,9 +143,11 @@ class RateLimiter:
             cutoff = now - self.window
             with sqlite3.connect(self.storage_path, timeout=10, isolation_level=None) as db:
                 db.execute("BEGIN IMMEDIATE")
+                # Opportunistically prune expired events across all buckets, not only
+                # the client currently making a request. The timestamp index keeps this
+                # cleanup bounded as the table grows.
                 db.execute(
-                    "DELETE FROM rate_limit_events WHERE bucket=? AND occurred_at<=?",
-                    (key, cutoff),
+                    "DELETE FROM rate_limit_events WHERE occurred_at<=?", (cutoff,)
                 )
                 count = db.execute(
                     "SELECT COUNT(*) FROM rate_limit_events WHERE bucket=?", (key,)
