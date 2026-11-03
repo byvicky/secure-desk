@@ -483,3 +483,47 @@ def test_rate_limit_bucket_does_not_store_raw_identifiers():
     assert bucket == security.rate_limit_bucket(
         "login", "203.0.113.10", "alice@example.com"
     )
+
+
+def test_session_cookie_expires_after_eight_hours(client, monkeypatch):
+    from itsdangerous import TimestampSigner
+
+    user = database.create_user(
+        "expiry-user", hash_password("expiry-user-password-123"), "agent"
+    )
+    login = client.post("/api/login", json={
+        "username": "expiry-user", "password": "expiry-user-password-123"
+    })
+    assert login.status_code == 200
+    assert client.cookies.get("securedesk_session")
+
+    original_get_timestamp = TimestampSigner.get_timestamp
+    monkeypatch.setattr(
+        TimestampSigner,
+        "get_timestamp",
+        lambda signer: original_get_timestamp(signer) + (9 * 60 * 60),
+    )
+
+    # Simulate a request arriving nine hours after the cookie was signed.
+    response = client.get("/api/tickets")
+    assert response.status_code == 401
+    assert client.get("/api/session").json()["authenticated"] is False
+
+
+def test_logout_clears_authenticated_session(client):
+    database.create_user(
+        "logout-user", hash_password("logout-user-password-123"), "agent"
+    )
+    login = client.post("/api/login", json={
+        "username": "logout-user", "password": "logout-user-password-123"
+    })
+    assert login.status_code == 200
+
+    logout = client.post(
+        "/api/logout",
+        headers={"X-CSRF-Token": login.json()["csrf_token"]},
+    )
+    assert logout.status_code == 200
+    assert logout.json()["authenticated"] is False
+    assert client.get("/api/session").json()["authenticated"] is False
+    assert client.get("/api/tickets").status_code == 401
