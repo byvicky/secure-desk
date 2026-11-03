@@ -371,3 +371,66 @@ def test_strict_active_flag_and_positive_identifiers(client):
     assert client.patch("/api/users/1/active", headers=headers, json={"active": "false"}).status_code == 422
     assert client.get("/api/tickets/0").status_code == 422
     assert client.post("/api/tickets/1/assignment", headers=headers, json={"user_id": 0}).status_code == 422
+
+def _rate_limit_process_worker(storage_path, start_event, result_queue):
+    from securedesk.security import RateLimiter
+
+    limiter = RateLimiter(limit=3, window_seconds=60, storage_path=storage_path)
+    start_event.wait(timeout=10)
+    result_queue.put(limiter.check("same-client"))
+
+
+def test_rate_limiter_is_atomic_across_independent_processes(tmp_path):
+    import multiprocessing
+
+    context = multiprocessing.get_context("spawn")
+    storage = str(tmp_path / "multiprocess-rate-limit.db")
+    start_event = context.Event()
+    result_queue = context.Queue()
+    workers = [
+        context.Process(
+            target=_rate_limit_process_worker,
+            args=(storage, start_event, result_queue),
+        )
+        for _ in range(8)
+    ]
+
+    for worker in workers:
+        worker.start()
+
+    start_event.set()
+    results = [result_queue.get(timeout=20) for _ in workers]
+
+    for worker in workers:
+        worker.join(timeout=20)
+        if worker.is_alive():
+            worker.terminate()
+            worker.join(timeout=5)
+        assert worker.exitcode == 0
+
+    assert sum(results) == 3
+
+
+def test_rate_limiter_prunes_expired_events_for_other_buckets(tmp_path):
+    import sqlite3
+    import time
+
+    storage = str(tmp_path / "cleanup-rate-limit.db")
+    limiter = RateLimiter(limit=2, window_seconds=60, storage_path=storage)
+
+    with sqlite3.connect(storage) as db:
+        db.execute(
+            "INSERT INTO rate_limit_events(bucket, occurred_at) VALUES(?, ?)",
+            ("inactive-client", time.time() - 120),
+        )
+
+    assert limiter.check("active-client")
+
+    with sqlite3.connect(storage) as db:
+        remaining = db.execute(
+            "SELECT COUNT(*) FROM rate_limit_events WHERE bucket=?",
+            ("inactive-client",),
+        ).fetchone()[0]
+
+    assert remaining == 0
+
