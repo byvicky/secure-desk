@@ -242,3 +242,10 @@ def test_validation_errors_do_not_echo_submitted_secrets(client):
     })
     assert response.status_code == 422
     assert secret not in response.text
+
+
+def test_search_treats_sql_injection_payload_as_plain_text(client):
+    ticket(client, "Chamado conhecido", "Descrição de teste para busca parametrizada.")
+    response = client.get("/api/tickets", params={"search": "x%' OR 1=1 --"})
+    assert response.status_code == 200
+    assert response.json() == []
