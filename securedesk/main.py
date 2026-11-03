@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -150,6 +151,18 @@ app.add_middleware(
 )
 app.add_middleware(RequestBodyLimitMiddleware, max_bytes=settings.max_request_body_bytes)
 app.mount("/static", StaticFiles(directory="web"), name="static")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_response(_: Request, exc: RequestValidationError):
+    # Pydantic's default error payload may echo rejected input, including PII or secrets.
+    safe_errors = [
+        {"loc": list(error.get("loc", ())), "msg": error.get("msg", "Invalid input"),
+         "type": error.get("type", "value_error")}
+        for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": safe_errors})
+
 
 if settings.cors_origins:
     app.add_middleware(
