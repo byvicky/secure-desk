@@ -459,3 +459,16 @@ def test_rate_limiter_failure_fails_closed(client, monkeypatch):
     response = client.get("/api/health")
     assert response.status_code == 503
     assert "temporariamente indisponível" in response.json()["detail"]
+
+
+def test_session_status_rejects_changed_role(client):
+    user = database.create_user("session-status-user", hash_password("session-status-password-123"), "agent")
+    login = client.post("/api/login", json={
+        "username": "session-status-user", "password": "session-status-password-123"
+    })
+    assert login.status_code == 200
+    with database.get_db() as db:
+        db.execute("UPDATE users SET role='admin' WHERE id=?", (user["id"],))
+    response = client.get("/api/session")
+    assert response.status_code == 200
+    assert response.json()["authenticated"] is False
