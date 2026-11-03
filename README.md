@@ -40,10 +40,15 @@ O SecureDesk busca:
 | Priorização | Define prioridade baixa, média, alta ou crítica por regras explícitas. |
 | Proteção de dados | Mascara e-mail, CPF e telefone reconhecidos antes de salvar. |
 | Validação | Rejeita campos inválidos e propriedades inesperadas. |
-| API autenticável | Suporta chave Bearer e exige autenticação quando configurada para produção. |
-| Limite de requisições | Aplica rate limiting básico por endereço de origem. |
+| API autenticável | Suporta chave Bearer e sessão web assinada no servidor. |
+| Login individual | Contas próprias com senha armazenada por hash PBKDF2 e sessão em cookie HttpOnly. |
+| Perfis de acesso | Perfis admin e agent; somente administradores gerenciam usuários. |
+| Limite de requisições | Rate limiting por janela deslizante, compartilhado entre processos via SQLite. |
 | Auditoria | Registra criação e mudanças de status. |
-| Interface web | Permite registrar e acompanhar chamados em uma interface responsiva. |
+| Interface web | Permite registrar, pesquisar e acompanhar chamados em uma interface responsiva. |
+| Atribuição e comentários | Permite atribuir chamados a usuários ativos e registrar comentários. |
+| Administração de contas | Permite desativar e reativar contas, protegendo o último administrador ativo. |
+| Indicadores | Exibe totais gerais de chamados, urgentes e resolvidos. |
 
 ## ✦ Fluxo de funcionamento
 
@@ -124,7 +129,11 @@ Copie `.env.example` para `.env`. Para habilitar autenticação obrigatória:
 ```env
 SECUREDESK_ENV=production
 SECUREDESK_API_KEY=uma-chave-longa-e-aleatoria
+SECUREDESK_ADMIN_USERNAME=admin
+SECUREDESK_ADMIN_PASSWORD=uma-senha-forte-com-pelo-menos-12-caracteres
+SECUREDESK_SESSION_SECRET=um-segredo-aleatorio-longo-para-assinar-sessoes
 SECUREDESK_CORS_ORIGINS=
+SECUREDESK_MAX_REQUEST_BODY_BYTES=1048576
 ```
 
 Gere uma chave forte:
@@ -133,11 +142,11 @@ Gere uma chave forte:
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Em produção, envie a credencial no cabeçalho `Authorization: Bearer <chave>`. Não coloque a chave no frontend nem faça commit do arquivo `.env`.
+Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PASSWORD` criam a conta administradora caso ainda não exista um administrador. A senha deve ter pelo menos 12 caracteres. Cada conta recebe usuário, hash PBKDF2 com salt individual e perfil `admin` ou `agent`. O administrador autenticado pode criar contas pela interface ou por `/api/users`, listar usuários e ativar/desativar contas; o sistema impede desativar a própria conta ou o último administrador ativo. Agentes não podem gerenciar usuários. O servidor cria uma sessão assinada em cookie `HttpOnly`, `SameSite=Strict` e `Secure` em produção. Alterações autenticadas via navegador exigem token CSRF vinculado à sessão. O login limita a cinco tentativas por combinação de IP e usuário em uma janela de 15 minutos; o estado do limite é compartilhado entre processos por SQLite. Clientes de API também podem usar `Authorization: Bearer <chave>`. Gere valores aleatórios fortes para `SECUREDESK_API_KEY` e `SECUREDESK_SESSION_SECRET`. Não coloque segredos no frontend nem faça commit do arquivo `.env`. Em desenvolvimento, sem senha de administrador configurada, o painel permanece aberto para uso local.
 
 ### Limitações conhecidas
 
-Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários gestão de usuários e permissões, armazenamento seguro de segredos, testes de segurança adicionais, HTTPS por proxy e revisão antes de uso real.
+Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter persiste eventos em SQLite e compartilha o estado entre processos no mesmo host quando todos usam o mesmo arquivo; ele não coordena múltiplos hosts. A redação de dados usa padrões comuns e não garante detectar todo dado pessoal. O limite padrão do corpo HTTP é 1 MiB (configurável por `SECUREDESK_MAX_REQUEST_BODY_BYTES`); corpos maiores são rejeitados. O rate limiter bloqueia requisições quando o armazenamento SQLite está indisponível. O workflow `Security audit` executa `pip-audit` e o Dependabot verifica semanalmente dependências Python e GitHub Actions. Para avaliar registros históricos, `python -m scripts.audit_pii --database ./data/securedesk.db` (ou `python scripts/audit_pii.py --database ...`) exibe somente contagens; `--apply` cria backup antes de mascarar padrões conhecidos. Faça primeiro a auditoria em uma cópia do banco. Ainda são necessários recuperação de senha, notificações, HTTPS por proxy, observabilidade, backups e revisão antes de uso real.
 
 ## ✦ Testes
 
@@ -151,10 +160,15 @@ pytest
 - [x] Classificação e priorização baseadas em regras.
 - [x] Mascaramento de identificadores comuns.
 - [x] Validação de entrada e testes iniciais.
-- [ ] Autenticação individual e perfis de acesso.
+- [x] Login web com sessão assinada e cookie protegido.
+- [x] Autenticação individual e perfis básicos de acesso.
 - [ ] Integração opcional com LLM usando minimização de dados.
-- [ ] Histórico detalhado e filtros na interface.
-- [ ] Testes de integração e análise estática no CI.
+- [x] Filtros de chamados e histórico de auditoria disponíveis na API; a experiência visual detalhada ainda pode evoluir.
+- [x] Testes de integração, navegador e análise estática no CI.
+- [x] Limitação básica de tentativas de login e proteção CSRF para sessões web.
+- [x] Atribuição de chamados a usuários ativos.
+- [x] Comentários por chamado.
+- [x] Histórico de auditoria com identificação do usuário que realizou a ação.
 - [ ] Revisão de segurança e documentação de implantação.
 
 ---

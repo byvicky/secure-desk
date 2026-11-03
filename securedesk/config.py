@@ -6,6 +6,10 @@ from dataclasses import dataclass
 class Settings:
     environment: str = os.getenv("SECUREDESK_ENV", "development").lower()
     api_key: str = os.getenv("SECUREDESK_API_KEY", "")
+    web_password: str = os.getenv("SECUREDESK_WEB_PASSWORD", "")
+    session_secret: str = os.getenv("SECUREDESK_SESSION_SECRET", "")
+    admin_username: str = os.getenv("SECUREDESK_ADMIN_USERNAME", "admin")
+    admin_password: str = os.getenv("SECUREDESK_ADMIN_PASSWORD", os.getenv("SECUREDESK_WEB_PASSWORD", ""))
     database: str = os.getenv("SECUREDESK_DATABASE", "./data/securedesk.db")
     cors_origins: tuple[str, ...] = tuple(
         item.strip()
@@ -13,6 +17,7 @@ class Settings:
         if item.strip()
     )
     rate_limit: int = max(10, int(os.getenv("SECUREDESK_RATE_LIMIT", "60")))
+    max_request_body_bytes: int = max(16_384, int(os.getenv("SECUREDESK_MAX_REQUEST_BODY_BYTES", "1048576")))
 
     @property
     def production(self) -> bool:

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from securedesk import database
 from securedesk.main import app
+from securedesk.security import redact_sensitive_data
 
 
 @pytest.fixture
@@ -106,3 +107,145 @@ def test_ticket_filters_reject_invalid_values(client):
     assert client.get("/api/tickets?category=unknown").status_code == 422
     assert client.get("/api/tickets?priority=urgent").status_code == 422
     assert client.get("/api/tickets?limit=101").status_code == 422
+
+
+def test_assignment_comments_and_actor_audit(client):
+    from securedesk.security import hash_password
+
+    agent = database.create_user("assigned-agent", hash_password("a-long-agent-password"), "agent")
+    created = ticket(client, "Falha no acesso VPN", "Não consigo conectar à VPN corporativa.")
+    ticket_id = created["id"]
+
+    assignable = client.get("/api/users/assignable")
+    assert assignable.status_code == 200
+    assert any(user["id"] == agent["id"] for user in assignable.json())
+
+    assigned = client.post(
+        f"/api/tickets/{ticket_id}/assignment", json={"user_id": agent["id"]}
+    )
+    assert assigned.status_code == 200
+    assert assigned.json()["assigned_to"] == agent["id"]
+
+    comment = client.post(
+        f"/api/tickets/{ticket_id}/comments",
+        json={"body": "Estou verificando a configuração da VPN."},
+    )
+    assert comment.status_code == 201
+    assert comment.json()["username"] == "local-dev"
+    assert client.get(f"/api/tickets/{ticket_id}/comments").json()[0]["body"] == (
+        "Estou verificando a configuração da VPN."
+    )
+
+    history = client.get(f"/api/tickets/{ticket_id}/history").json()
+    assert history[0]["event"] == "Comentário adicionado"
+    assert history[0]["actor_username"] == "local-dev"
+    assert any(item["event"] == "Chamado atribuído a assigned-agent" for item in history)
+
+
+def test_assignment_rejects_inactive_or_missing_user(client):
+    created = ticket(client, "Falha no monitor", "O monitor não apresenta imagem.")
+    response = client.post(
+        f"/api/tickets/{created['id']}/assignment", json={"user_id": 9999}
+    )
+    assert response.status_code == 404
+
+
+def test_ticket_search_and_dashboard_stats(client):
+    match = ticket(client, "Erro no acesso ao portal", "Falha ao entrar no portal interno.")
+    ticket(client, "Teclado sem resposta", "O teclado parou de funcionar.")
+    response = client.get("/api/tickets?search=portal")
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [match["id"]]
+
+    stats = client.get("/api/dashboard/stats")
+    assert stats.status_code == 200
+    assert stats.json()["total"] >= 2
+    assert stats.json()["open"] >= 2
+
+
+def test_admin_can_deactivate_agent_but_not_last_admin_or_self(client):
+    from securedesk.security import hash_password
+
+    agent = database.create_user("deactivate-agent", hash_password("a-long-agent-password"), "agent")
+    response = client.patch(f"/api/users/{agent['id']}/active", json={"active": False})
+    assert response.status_code == 200
+    assert response.json()["active"] == 0
+    assert all(user["id"] != agent["id"] for user in client.get("/api/users/assignable").json())
+
+    admin = database.create_user("only-admin", hash_password("a-long-admin-password"), "admin")
+    protected = client.patch(f"/api/users/{admin['id']}/active", json={"active": False})
+    assert protected.status_code == 409
+
+
+def test_comment_redaction_masks_personal_data(client):
+    created = ticket(client, "Solicitação de suporte", "Descrição válida para abrir o chamado.")
+    comment = client.post(
+        f"/api/tickets/{created['id']}/comments",
+        json={"body": "Contato ana@example.com, CPF 123.456.789-00 e telefone 11987654321."},
+    )
+    assert comment.status_code == 201
+    body = comment.json()["body"]
+    assert "ana@example.com" not in body
+    assert "123.456.789-00" not in body
+    assert "11987654321" not in body
+    assert "[EMAIL REDIGIDO]" in body
+    assert "[CPF REDIGIDO]" in body
+    assert "[TELEFONE REDIGIDO]" in body
+
+
+def test_redaction_masks_unformatted_cpf():
+    result = redact_sensitive_data("CPF 12345678900")
+    assert "12345678900" not in result
+    assert "[CPF REDIGIDO]" in result
+
+
+
+def test_request_body_size_limit_returns_413(client):
+    response = client.post(
+        "/api/tickets",
+        content=b"x" * (1024 * 1024 + 1),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+
+
+def test_malformed_json_is_rejected_without_server_error(client):
+    response = client.post(
+        "/api/tickets",
+        content=b'{"requester":',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+
+
+def test_ticket_requester_and_title_are_redacted_in_api_response(client):
+    response = client.post("/api/tickets", json={
+        "requester": "Maria 123.456.789-00",
+        "title": "Contato ana@example.com",
+        "description": "Descrição suficientemente longa para validar a criação do chamado.",
+    })
+    assert response.status_code == 201
+    payload = response.json()
+    assert "123.456.789-00" not in payload["requester"]
+    assert "ana@example.com" not in payload["title"]
+    assert "[CPF REDIGIDO]" in payload["requester"]
+    assert "[EMAIL REDIGIDO]" in payload["title"]
+
+
+def test_validation_errors_do_not_echo_submitted_secrets(client):
+    secret = "private-input-that-must-not-be-echoed"
+    response = client.post("/api/tickets", json={
+        "requester": "Maria",
+        "title": secret,
+        "description": "Descrição suficientemente longa para validar a solicitação.",
+        "unexpected": secret,
+    })
+    assert response.status_code == 422
+    assert secret not in response.text
+
+
+def test_search_treats_sql_injection_payload_as_plain_text(client):
+    ticket(client, "Chamado conhecido", "Descrição de teste para busca parametrizada.")
+    response = client.get("/api/tickets", params={"search": "x%' OR 1=1 --"})
+    assert response.status_code == 200
+    assert response.json() == []

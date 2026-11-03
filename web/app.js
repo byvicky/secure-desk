@@ -1,8 +1,46 @@
 const form=document.querySelector("#ticket-form"),message=document.querySelector("#form-message"),list=document.querySelector("#ticket-list");
+const loginPanel=document.querySelector("#login-panel"),loginForm=document.querySelector("#login-form"),loginMessage=document.querySelector("#login-message"),logoutButton=document.querySelector("#logout");
+let csrfToken="",assignableUsers=[],currentUser=null;
+window.secureDeskCsrfToken="";
 const priorities={critica:"Crítica",alta:"Alta",media:"Média",baixa:"Baixa"},categories={acesso:"Acesso",hardware:"Hardware",software:"Software",rede:"Rede",seguranca:"Segurança",outro:"Outro"};
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-async function load(){list.textContent="Carregando…";try{const params=new URLSearchParams();for(const key of ["status","category","priority"]){const value=document.querySelector("#filter-"+key).value;if(value)params.set(key,value);}const res=await fetch("/api/tickets?"+params.toString());if(!res.ok)throw Error();const rows=await res.json();document.querySelector("#total").textContent=rows.length;document.querySelector("#urgent").textContent=rows.filter(x=>["alta","critica"].includes(x.priority)).length;document.querySelector("#resolved").textContent=rows.filter(x=>x.status==="resolvido").length;if(!rows.length){list.innerHTML='<div class="empty">Nenhuma solicitação encontrada com esses filtros.</div>';return;}list.innerHTML=rows.map(x=>'<article class="ticket"><div class="ticket-top"><span class="ticket-title">'+esc(x.title)+'</span><span class="tag '+esc(x.priority)+'">'+(priorities[x.priority]||"—")+'</span></div><div class="ticket-meta">'+esc(x.requester)+' · '+(categories[x.category]||"Outro")+' · '+esc(x.status)+'</div></article>').join("");}catch{list.innerHTML='<div class="empty">Não foi possível carregar. Verifique se a API está ativa.</div>';}}
-form.addEventListener("submit",async e=>{e.preventDefault();message.textContent="Enviando…";const data=Object.fromEntries(new FormData(form));if(!data.category)delete data.category;try{const res=await fetch("/api/tickets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const body=await res.json();if(!res.ok)throw Error(body.detail||"Falha ao registrar.");form.reset();message.textContent="Solicitação #"+body.id+" registrada.";await load();}catch(err){message.textContent=err.message;}});
+function showLogin(show){loginPanel.hidden=!show;document.querySelector(".shell").hidden=show;}
+async function api(path,options={}){const headers={...(options.headers||{})};if(options.method&&options.method!=="GET")headers["X-CSRF-Token"]=csrfToken;if(options.body)headers["Content-Type"]="application/json";const res=await fetch(path,{...options,headers});const body=await res.json().catch(()=>({}));if(!res.ok)throw Error(body.detail||"Falha na solicitação.");return body;}
+async function checkSession(){try{const data=await api("/api/session");csrfToken=data.csrf_token||"";window.secureDeskCsrfToken=csrfToken;showLogin(!data.authenticated);if(data.authenticated){currentUser=data.user;document.querySelector("#admin-panel").hidden=currentUser?.role!=="admin";if(currentUser?.role==="admin"){assignableUsers=await api("/api/users/assignable");await loadUsers();}else{assignableUsers=[];}await load();}}catch{showLogin(true);loginMessage.textContent="Não foi possível conectar ao servidor.";}}
+async function load(){list.textContent="Carregando…";try{const params=new URLSearchParams();for(const key of ["status","category","priority","search"]){const value=document.querySelector("#filter-"+key).value;if(value)params.set(key,value);}const rows=await api("/api/tickets?"+params.toString());const stats=await api("/api/dashboard/stats");document.querySelector("#total").textContent=stats.total;document.querySelector("#urgent").textContent=stats.urgent;document.querySelector("#resolved").textContent=stats.resolved;if(!rows.length){list.innerHTML='<div class="empty">Nenhuma solicitação encontrada com esses filtros.</div>';return;}list.innerHTML=rows.map(x=>'<article class="ticket" data-ticket="'+x.id+'"><div class="ticket-top"><span class="ticket-title">'+esc(x.title)+'</span><span class="tag '+esc(x.priority)+'">'+(priorities[x.priority]||"—")+'</span></div><div class="ticket-meta">'+esc(x.requester)+' · '+(categories[x.category]||"Outro")+' · '+esc(x.status)+' · '+(x.assigned_to?'Responsável #'+x.assigned_to:'Sem responsável')+'</div><div class="ticket-actions"><label>Status<select class="ticket-status" data-id="'+x.id+'"><option value="aberto" '+(x.status==="aberto"?'selected':'')+'>Aberto</option><option value="em_andamento" '+(x.status==="em_andamento"?'selected':'')+'>Em andamento</option><option value="resolvido" '+(x.status==="resolvido"?'selected':'')+'>Resolvido</option></select></label><label>Atribuir<select class="assignee" data-id="'+x.id+'"><option value="">Não atribuído</option>'+assignableUsers.map(u=>'<option value="'+u.id+'" '+(x.assigned_to===u.id?'selected':'')+'>'+esc(u.username)+' ('+esc(u.role)+')</option>').join("")+'</select></label><details class="comments"><summary>Comentários</summary><div class="comment-list" data-comments="'+x.id+'">Carregando…</div><form class="comment-form" data-id="'+x.id+'"><input name="body" maxlength="2000" minlength="2" placeholder="Escreva um comentário" required><button type="submit">Enviar</button></form></details></div></article>').join("");list.querySelectorAll(".ticket-status").forEach(el=>el.addEventListener("change",async()=>{try{await api("/api/tickets/"+el.dataset.id,{method:"PATCH",body:JSON.stringify({status:el.value})});await load();}catch(e){alert(e.message);}}));list.querySelectorAll(".assignee").forEach(el=>el.addEventListener("change",async()=>{try{await api("/api/tickets/"+el.dataset.id+"/assignment",{method:"POST",body:JSON.stringify({user_id:el.value?Number(el.value):null})});await load();}catch(e){alert(e.message);}}));list.querySelectorAll(".comments").forEach(el=>el.addEventListener("toggle",async()=>{if(!el.open)return;const id=el.closest("[data-ticket]").dataset.ticket;const target=el.querySelector(".comment-list");try{const comments=await api("/api/tickets/"+id+"/comments");target.innerHTML=comments.length?comments.map(c=>'<p><strong>'+esc(c.username)+'</strong>: '+esc(c.body)+'</p>').join(""):'<p>Nenhum comentário ainda.</p>';}catch(e){target.textContent=e.message;}}));list.querySelectorAll(".comment-form").forEach(el=>el.addEventListener("submit",async e=>{e.preventDefault();const input=el.elements.body;try{await api("/api/tickets/"+el.dataset.id+"/comments",{method:"POST",body:JSON.stringify({body:input.value})});input.value="";el.closest("details").dispatchEvent(new Event("toggle"));}catch(err){alert(err.message);}}));}catch(e){if(e.message==="Autenticação necessária.")showLogin(true);list.innerHTML='<div class="empty">Não foi possível carregar: '+esc(e.message)+'</div>';}}
+document.querySelector("#create-user-form").addEventListener("submit",async event=>{
+ event.preventDefault();
+ const form=event.currentTarget;
+ const message=document.querySelector("#user-message");
+ const payload=Object.fromEntries(new FormData(form));
+ message.textContent="Criando conta…";
+ try{
+  await api("/api/users",{method:"POST",body:JSON.stringify(payload)});
+  form.reset();
+  message.textContent="Conta criada com sucesso.";
+  assignableUsers=await api("/api/users/assignable");
+  await loadUsers();
+  await load();
+ }catch(error){message.textContent=error.message;}
+});
+async function loadUsers(){
+ const target=document.querySelector("#user-list");
+ try{
+  const users=await api("/api/users");
+  target.innerHTML=users.map(u=>'<div class="user-row"><span><strong>'+esc(u.username)+'</strong><small>'+esc(u.role)+' · '+(u.active?'Ativo':'Desativado')+'</small></span><button type="button" data-user="'+u.id+'" data-active="'+(u.active?'false':'true')+'" '+(u.id===currentUser?.id?'disabled':'')+'>'+(u.active?'Desativar':'Reativar')+'</button></div>').join("");
+  target.querySelectorAll("button[data-user]").forEach(button=>button.addEventListener("click",async()=>{
+   try{
+    await api("/api/users/"+button.dataset.user+"/active",{method:"PATCH",body:JSON.stringify({active:button.dataset.active==="true"})});
+    await loadUsers();
+    assignableUsers=await api("/api/users/assignable");
+    await load();
+   }catch(error){alert(error.message);}
+  }));
+ }catch(error){target.textContent=error.message;}
+}
+loginForm.addEventListener("submit",async e=>{e.preventDefault();loginMessage.textContent="Entrando…";const credentials=Object.fromEntries(new FormData(loginForm));try{const body=await api("/api/login",{method:"POST",body:JSON.stringify(credentials)});csrfToken=body.csrf_token||"";window.secureDeskCsrfToken=csrfToken;currentUser=body.user;document.querySelector("#admin-panel").hidden=currentUser?.role!=="admin";if(currentUser?.role==="admin"){assignableUsers=await api("/api/users/assignable");await loadUsers();}else{assignableUsers=[];}loginForm.reset();loginMessage.textContent="";showLogin(false);await load();}catch(err){loginMessage.textContent=err.message;}});
+logoutButton.addEventListener("click",async()=>{try{await api("/api/logout",{method:"POST"});}finally{csrfToken="";window.secureDeskCsrfToken="";showLogin(true);}});
+form.addEventListener("submit",async e=>{e.preventDefault();message.textContent="Enviando…";const data=Object.fromEntries(new FormData(form));if(!data.category)delete data.category;try{const body=await api("/api/tickets",{method:"POST",body:JSON.stringify(data)});form.reset();message.textContent="Solicitação #"+body.id+" registrada.";await load();}catch(err){message.textContent=err.message;}});
 document.querySelector("#refresh").addEventListener("click",load);
-for(const key of ["status","category","priority"])document.querySelector("#filter-"+key).addEventListener("change",load);
-load();
+for(const key of ["status","category","priority","search"])document.querySelector("#filter-"+key).addEventListener(key==="search"?"input":"change",load);
+checkSession();
