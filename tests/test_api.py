@@ -230,3 +230,15 @@ def test_ticket_requester_and_title_are_redacted_in_api_response(client):
     assert "ana@example.com" not in payload["title"]
     assert "[CPF REDIGIDO]" in payload["requester"]
     assert "[EMAIL REDIGIDO]" in payload["title"]
+
+
+def test_validation_errors_do_not_echo_submitted_secrets(client):
+    secret = "private-input-that-must-not-be-echoed"
+    response = client.post("/api/tickets", json={
+        "requester": "Maria",
+        "title": secret,
+        "description": "Descrição suficientemente longa para validar a solicitação.",
+        "unexpected": secret,
+    })
+    assert response.status_code == 422
+    assert secret not in response.text
