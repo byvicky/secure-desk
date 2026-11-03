@@ -434,3 +434,28 @@ def test_rate_limiter_prunes_expired_events_for_other_buckets(tmp_path):
 
     assert remaining == 0
 
+
+
+
+def test_session_is_invalidated_after_role_change(client):
+    user = database.create_user("role-change-user", hash_password("role-change-password-123"), "agent")
+    login = client.post("/api/login", json={
+        "username": "role-change-user", "password": "role-change-password-123"
+    })
+    assert login.status_code == 200
+    with database.get_db() as db:
+        db.execute("UPDATE users SET role='admin' WHERE id=?", (user["id"],))
+    assert client.get("/api/tickets").status_code == 401
+
+
+def test_rate_limiter_failure_fails_closed(client, monkeypatch):
+    import sqlite3
+    from securedesk import main
+
+    def unavailable(_key):
+        raise sqlite3.OperationalError("database unavailable")
+
+    monkeypatch.setattr(main.limiter, "check", unavailable)
+    response = client.get("/api/health")
+    assert response.status_code == 503
+    assert "temporariamente indisponível" in response.json()["detail"]
