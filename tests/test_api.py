@@ -197,3 +197,36 @@ def test_redaction_masks_unformatted_cpf():
     result = redact_sensitive_data("CPF 12345678900")
     assert "12345678900" not in result
     assert "[CPF REDIGIDO]" in result
+
+
+
+def test_request_body_size_limit_returns_413(client):
+    response = client.post(
+        "/api/tickets",
+        content=b"x" * (1024 * 1024 + 1),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+
+
+def test_malformed_json_is_rejected_without_server_error(client):
+    response = client.post(
+        "/api/tickets",
+        content=b'{"requester":',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+
+
+def test_ticket_requester_and_title_are_redacted_in_api_response(client):
+    response = client.post("/api/tickets", json={
+        "requester": "Maria 123.456.789-00",
+        "title": "Contato ana@example.com",
+        "description": "Descrição suficientemente longa para validar a criação do chamado.",
+    })
+    assert response.status_code == 201
+    payload = response.json()
+    assert "123.456.789-00" not in payload["requester"]
+    assert "ana@example.com" not in payload["title"]
+    assert "[CPF REDIGIDO]" in payload["requester"]
+    assert "[EMAIL REDIGIDO]" in payload["title"]
