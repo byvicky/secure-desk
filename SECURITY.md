@@ -21,6 +21,7 @@ Não inclua dados de terceiros, segredos ou provas de conceito destrutivas.
 - O limitador de requisições usa SQLite e compartilha o estado entre processos que acessam o mesmo arquivo no mesmo host. Ele não coordena múltiplos hosts e não substitui controles de borda.
 - A redação de dados depende de padrões conhecidos e não detecta todo tipo de informação pessoal. Os novos registros de solicitantes, títulos, descrições e comentários passam por redação heurística; dados históricos exigem auditoria explícita.
 - O limite padrão do corpo HTTP é 1 MiB e pode ser configurado por `SECUREDESK_MAX_REQUEST_BODY_BYTES`. A aplicação rejeita corpos maiores com HTTP 413.
+- Os identificadores usados nos buckets do rate limiter são transformados com HMAC antes de serem armazenados, evitando persistir IPs e nomes de usuário em texto puro.
 - Se o armazenamento SQLite do limitador estiver indisponível, as requisições são bloqueadas com HTTP 503 (fail closed), inclusive tentativas de login.
 - Respostas de validação HTTP 422 omitem o valor original dos campos rejeitados para evitar ecoar senhas, tokens ou dados pessoais.
 - O cookie de sessão tem validade máxima de oito horas, usa `HttpOnly` (padrão do middleware), `SameSite=Strict` e `Secure` em produção. O logout limpa a sessão; contas inativas ou com papel alterado têm a sessão rejeitada na próxima requisição.
