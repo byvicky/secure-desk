@@ -488,7 +488,7 @@ def test_rate_limit_bucket_does_not_store_raw_identifiers():
 def test_session_cookie_expires_after_eight_hours(client, monkeypatch):
     from itsdangerous import TimestampSigner
 
-    user = database.create_user(
+    database.create_user(
         "expiry-user", hash_password("expiry-user-password-123"), "agent"
     )
     login = client.post("/api/login", json={
