@@ -24,7 +24,7 @@ Não inclua dados de terceiros, segredos ou provas de conceito destrutivas.
 - Se o armazenamento SQLite do limitador estiver indisponível, as requisições são bloqueadas com HTTP 503 (fail closed), inclusive tentativas de login.
 - Respostas de validação HTTP 422 omitem o valor original dos campos rejeitados para evitar ecoar senhas, tokens ou dados pessoais.
 - O cookie de sessão tem validade máxima de oito horas, usa `HttpOnly` (padrão do middleware), `SameSite=Strict` e `Secure` em produção. O logout limpa a sessão; contas inativas ou com papel alterado têm a sessão rejeitada na próxima requisição.
-- O script `scripts/audit_pii.py --database CAMINHO` faz auditoria somente leitura e exibe apenas contagens. Após revisar o relatório e fazer uma cópia segura, `--apply` cria um backup SQLite e mascara padrões reconhecidos. A operação é heurística e deve ser validada em uma cópia antes de ser aplicada em dados importantes.
+- O script `python -m scripts.audit_pii --database CAMINHO` faz auditoria somente leitura e exibe apenas contagens. Após revisar o relatório e fazer uma cópia segura, `--apply` cria um backup SQLite e mascara padrões reconhecidos. A operação é heurística e deve ser validada em uma cópia antes de ser aplicada em dados importantes.
 - A chave Bearer compartilhada é um mecanismo de demonstração, não um sistema completo de identidade e autorização.
 - O projeto ainda não foi aprovado para processar dados reais ou operar em produção.
 - A política CSP e os cabeçalhos HTTP básicos estão ativos; a política deve ser reavaliada sempre que novos recursos externos forem adicionados.
