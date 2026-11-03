@@ -472,3 +472,13 @@ def test_session_status_rejects_changed_role(client):
     response = client.get("/api/session")
     assert response.status_code == 200
     assert response.json()["authenticated"] is False
+
+
+def test_rate_limit_bucket_does_not_store_raw_identifiers():
+    bucket = security.rate_limit_bucket("login", "203.0.113.10", "alice@example.com")
+    assert len(bucket) == 64
+    assert "203.0.113.10" not in bucket
+    assert "alice@example.com" not in bucket
+    assert bucket == security.rate_limit_bucket(
+        "login", "203.0.113.10", "alice@example.com"
+    )
