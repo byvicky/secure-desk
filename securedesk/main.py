@@ -1,5 +1,6 @@
 import logging
 import secrets
+import sqlite3
 import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -39,6 +40,69 @@ logger = logging.getLogger("securedesk")
 rate_limit_db = f"{settings.database}.ratelimit"
 limiter = RateLimiter(settings.rate_limit, storage_path=rate_limit_db)
 login_limiter = RateLimiter(limit=5, window_seconds=900, storage_path=rate_limit_db)
+
+
+class RequestBodyLimitMiddleware:
+    """Reject oversized request bodies before FastAPI parses or buffers them."""
+
+    def __init__(self, app, max_bytes: int):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        content_length = headers.get(b"content-length")
+        if content_length:
+            try:
+                if int(content_length) > self.max_bytes:
+                    await self._reject(send)
+                    return
+            except ValueError:
+                await self._reject(send)
+                return
+
+        chunks = []
+        total = 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+            chunk = message.get("body", b"")
+            total += len(chunk)
+            if total > self.max_bytes:
+                await self._reject(send)
+                return
+            chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
+
+        body = b"".join(chunks)
+        delivered = False
+
+        async def replay_receive():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return {"type": "http.disconnect"}
+
+        await self.app(scope, replay_receive, send)
+
+    @staticmethod
+    async def _reject(send):
+        body = b'{"detail":"Corpo da requisicao excede o limite permitido."}'
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 
 class LoginRequest(BaseModel):
@@ -84,6 +148,7 @@ app.add_middleware(
     same_site="strict",
     https_only=settings.production,
 )
+app.add_middleware(RequestBodyLimitMiddleware, max_bytes=settings.max_request_body_bytes)
 app.mount("/static", StaticFiles(directory="web"), name="static")
 
 if settings.cors_origins:
@@ -100,7 +165,13 @@ if settings.cors_origins:
 async def security_headers(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))[:64]
     client = request.client.host if request.client else "unknown"
-    if not limiter.check(client):
+    try:
+        allowed = limiter.check(client)
+    except sqlite3.Error:
+        logger.error("Rate limiter indisponível; requisição bloqueada.")
+        return JSONResponse(status_code=503, content={"detail": "Controle de requisições temporariamente indisponível."},
+                            headers={"Retry-After": "30", "X-Request-ID": request_id})
+    if not allowed:
         return JSONResponse(status_code=429, content={"detail": "Limite de requisições excedido."},
                             headers={"Retry-After": "60", "X-Request-ID": request_id})
     try:
@@ -141,7 +212,12 @@ def login(payload: LoginRequest, request: Request):
         raise HTTPException(status_code=403, detail="Origem da solicitação inválida.")
     client_ip = request.client.host if request.client else "unknown"
     attempt_key = f"{client_ip}:{payload.username.casefold()}"
-    if not login_limiter.check(attempt_key):
+    try:
+        allowed = login_limiter.check(attempt_key)
+    except sqlite3.Error:
+        logger.error("Rate limiter de login indisponível; autenticação bloqueada.")
+        raise HTTPException(status_code=503, detail="Autenticação temporariamente indisponível.") from None
+    if not allowed:
         raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 15 minutos.")
     user = database.get_user_by_username(payload.username)
     if not user and payload.username == settings.admin_username and settings.web_password and secrets.compare_digest(payload.password, settings.web_password):
@@ -149,7 +225,11 @@ def login(payload: LoginRequest, request: Request):
         user = database.get_user_by_username(settings.admin_username)
     if not user or not user["active"] or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Usuário ou senha incorretos.")
-    login_limiter.reset(attempt_key)
+    try:
+        login_limiter.reset(attempt_key)
+    except sqlite3.Error:
+        logger.error("Não foi possível atualizar o rate limiter após login.")
+        raise HTTPException(status_code=503, detail="Autenticação temporariamente indisponível.") from None
     request.session.clear()
     request.session["user"] = {"id": user["id"], "username": user["username"], "role": user["role"]}
     request.session["csrf_token"] = secrets.token_urlsafe(32)
