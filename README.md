@@ -142,7 +142,7 @@ Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PAS
 
 ### Limitações conhecidas
 
-Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter é mantido em memória e serve apenas para uma única instância; a redação de dados usa padrões comuns e não garante detectar todo dado pessoal; ainda são necessários recuperação de senha, notificações, armazenamento distribuído do rate limiter, HTTPS por proxy e revisão antes de uso real.
+Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter persiste eventos em SQLite e compartilha o estado entre processos no mesmo host quando todos usam o mesmo arquivo; ele não coordena múltiplos hosts. A redação de dados usa padrões comuns e não garante detectar todo dado pessoal. Ainda são necessários recuperação de senha, notificações, HTTPS por proxy, observabilidade, backups e revisão antes de uso real.
 
 ## ✦ Testes
 
