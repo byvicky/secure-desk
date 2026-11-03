@@ -18,7 +18,7 @@ Não inclua dados de terceiros, segredos ou provas de conceito destrutivas.
 
 ## Limitações conhecidas
 
-- O limitador de requisições é local à instância e não substitui controles de borda.
+- O limitador de requisições usa SQLite e compartilha o estado entre processos que acessam o mesmo arquivo no mesmo host. Ele não coordena múltiplos hosts e não substitui controles de borda.
 - A redação de dados depende de padrões conhecidos e não detecta todo tipo de informação pessoal.
 - A chave Bearer compartilhada é um mecanismo de demonstração, não um sistema completo de identidade e autorização.
 - O projeto ainda não foi aprovado para processar dados reais ou operar em produção.
