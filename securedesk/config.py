@@ -17,6 +17,7 @@ class Settings:
         if item.strip()
     )
     rate_limit: int = max(10, int(os.getenv("SECUREDESK_RATE_LIMIT", "60")))
+    max_request_body_bytes: int = max(16_384, int(os.getenv("SECUREDESK_MAX_REQUEST_BODY_BYTES", "1048576")))
 
     @property
     def production(self) -> bool:
