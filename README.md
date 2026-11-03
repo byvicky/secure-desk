@@ -133,6 +133,7 @@ SECUREDESK_ADMIN_USERNAME=admin
 SECUREDESK_ADMIN_PASSWORD=uma-senha-forte-com-pelo-menos-12-caracteres
 SECUREDESK_SESSION_SECRET=um-segredo-aleatorio-longo-para-assinar-sessoes
 SECUREDESK_CORS_ORIGINS=
+SECUREDESK_MAX_REQUEST_BODY_BYTES=1048576
 ```
 
 Gere uma chave forte:
@@ -145,7 +146,7 @@ Na primeira inicialização, `SECUREDESK_ADMIN_USERNAME` e `SECUREDESK_ADMIN_PAS
 
 ### Limitações conhecidas
 
-Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter persiste eventos em SQLite e compartilha o estado entre processos no mesmo host quando todos usam o mesmo arquivo; ele não coordena múltiplos hosts. A redação de dados usa padrões comuns e não garante detectar todo dado pessoal. Ainda são necessários recuperação de senha, notificações, HTTPS por proxy, observabilidade, backups e revisão antes de uso real.
+Este é um protótipo educacional, não um serviço pronto para produção. O rate limiter persiste eventos em SQLite e compartilha o estado entre processos no mesmo host quando todos usam o mesmo arquivo; ele não coordena múltiplos hosts. A redação de dados usa padrões comuns e não garante detectar todo dado pessoal. O limite padrão do corpo HTTP é 1 MiB (configurável por `SECUREDESK_MAX_REQUEST_BODY_BYTES`); corpos maiores são rejeitados. O rate limiter bloqueia requisições quando o armazenamento SQLite está indisponível. O workflow `Security audit` executa `pip-audit` e o Dependabot verifica semanalmente dependências Python e GitHub Actions. Para avaliar registros históricos, `python -m scripts.audit_pii --database ./data/securedesk.db` (ou `python scripts/audit_pii.py --database ...`) exibe somente contagens; `--apply` cria backup antes de mascarar padrões conhecidos. Faça primeiro a auditoria em uma cópia do banco. Ainda são necessários recuperação de senha, notificações, HTTPS por proxy, observabilidade, backups e revisão antes de uso real.
 
 ## ✦ Testes
 
