@@ -45,7 +45,10 @@ O SecureDesk busca:
 | Perfis de acesso | Perfis admin e agent; somente administradores gerenciam usuários. |
 | Limite de requisições | Rate limiting por janela deslizante, compartilhado entre processos via SQLite. |
 | Auditoria | Registra criação e mudanças de status. |
-| Interface web | Permite registrar, pesquisar e acompanhar chamados em uma interface responsiva. |\n| Atribuição e comentários | Permite atribuir chamados a usuários ativos e registrar comentários. |\n| Administração de contas | Permite desativar e reativar contas, protegendo o último administrador ativo. |\n| Indicadores | Exibe totais gerais de chamados, urgentes e resolvidos. |
+| Interface web | Permite registrar, pesquisar e acompanhar chamados em uma interface responsiva. |
+| Atribuição e comentários | Permite atribuir chamados a usuários ativos e registrar comentários. |
+| Administração de contas | Permite desativar e reativar contas, protegendo o último administrador ativo. |
+| Indicadores | Exibe totais gerais de chamados, urgentes e resolvidos. |
 
 ## ✦ Fluxo de funcionamento
 
@@ -160,7 +163,11 @@ pytest
 - [x] Autenticação individual e perfis básicos de acesso.
 - [ ] Integração opcional com LLM usando minimização de dados.
 - [x] Filtros de chamados e histórico de auditoria disponíveis na API; a experiência visual detalhada ainda pode evoluir.
-- [x] Testes de integração, navegador e análise estática no CI.\n- [x] Limitação básica de tentativas de login e proteção CSRF para sessões web.\n- [x] Atribuição de chamados a usuários ativos.\n- [x] Comentários por chamado.\n- [x] Histórico de auditoria com identificação do usuário que realizou a ação.
+- [x] Testes de integração, navegador e análise estática no CI.
+- [x] Limitação básica de tentativas de login e proteção CSRF para sessões web.
+- [x] Atribuição de chamados a usuários ativos.
+- [x] Comentários por chamado.
+- [x] Histórico de auditoria com identificação do usuário que realizou a ação.
 - [ ] Revisão de segurança e documentação de implantação.
 
 ---
