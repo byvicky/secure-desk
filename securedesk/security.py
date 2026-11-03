@@ -48,6 +48,13 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
+def rate_limit_bucket(*parts: str) -> str:
+    """Return a keyed pseudonymous bucket so raw IPs/usernames are not stored in SQLite."""
+    secret = settings.session_secret or settings.api_key or "development-only-rate-limit-key"
+    message = "\\0".join(parts).encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
 def redact_sensitive_data(value: str) -> str:
     """Mask common identifiers before saving ticket content."""
     for pattern, replacement in _PATTERNS:
