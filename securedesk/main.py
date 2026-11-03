@@ -163,7 +163,8 @@ if settings.cors_origins:
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))[:64]
+    # Never trust a client-supplied correlation ID: it can contain PII or log-control characters.
+    request_id = str(uuid.uuid4())
     client = request.client.host if request.client else "unknown"
     try:
         allowed = limiter.check(client)
