@@ -91,9 +91,9 @@ class RequestBodyLimitMiddleware:
             if not delivered:
                 delivered = True
                 return {"type": "http.request", "body": body, "more_body": False}
-            # The downstream Starlette middleware also listens for disconnects.
-            # Do not synthesize a disconnect merely because the body was buffered.
-            return {"type": "http.request", "body": b"", "more_body": False}
+            # Delegate disconnect detection to the real ASGI server after replaying
+            # the buffered body; do not synthesize an early disconnect.
+            return await receive()
 
         await self.app(scope, replay_receive, send)
 
