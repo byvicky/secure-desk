@@ -450,6 +450,7 @@ def test_session_is_invalidated_after_role_change(client):
 
 def test_rate_limiter_failure_fails_closed(client, monkeypatch):
     import sqlite3
+
     from securedesk import main
 
     def unavailable(_key):
