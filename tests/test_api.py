@@ -174,3 +174,25 @@ def test_admin_can_deactivate_agent_but_not_last_admin_or_self(client):
     admin = database.create_user("only-admin", hash_password("a-long-admin-password"), "admin")
     protected = client.patch(f"/api/users/{admin['id']}/active", json={"active": False})
     assert protected.status_code == 409
+
+
+def test_comment_redaction_masks_personal_data(client):
+    created = ticket(client, "Solicitação de suporte", "Descrição válida para abrir o chamado.")
+    comment = client.post(
+        f"/api/tickets/{created['id']}/comments",
+        json={"body": "Contato ana@example.com, CPF 123.456.789-00 e telefone 11987654321."},
+    )
+    assert comment.status_code == 201
+    body = comment.json()["body"]
+    assert "ana@example.com" not in body
+    assert "123.456.789-00" not in body
+    assert "11987654321" not in body
+    assert "[EMAIL REDIGIDO]" in body
+    assert "[CPF REDIGIDO]" in body
+    assert "[TELEFONE REDIGIDO]" in body
+
+
+def test_redaction_masks_unformatted_cpf():
+    result = redact_sensitive_data("CPF 12345678900")
+    assert "12345678900" not in result
+    assert "[CPF REDIGIDO]" in result
