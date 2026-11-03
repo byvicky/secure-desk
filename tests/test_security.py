@@ -527,3 +527,38 @@ def test_logout_clears_authenticated_session(client):
     assert logout.json()["authenticated"] is False
     assert client.get("/api/session").json()["authenticated"] is False
     assert client.get("/api/tickets").status_code == 401
+
+
+def test_session_is_invalidated_after_account_deactivation(client):
+    agent = database.create_user(
+        "deactivated-agent", hash_password("deactivated-agent-password-123"), "agent"
+    )
+    database.create_user(
+        "deactivation-admin", hash_password("deactivation-admin-password-123"), "admin"
+    )
+
+    with TestClient(app) as agent_client, TestClient(app) as admin_client:
+        agent_login = agent_client.post("/api/login", json={
+            "username": "deactivated-agent",
+            "password": "deactivated-agent-password-123",
+        })
+        assert agent_login.status_code == 200
+        assert agent_client.get("/api/tickets").status_code == 200
+
+        admin_login = admin_client.post("/api/login", json={
+            "username": "deactivation-admin",
+            "password": "deactivation-admin-password-123",
+        })
+        assert admin_login.status_code == 200
+        response = admin_client.patch(
+            f"/api/users/{agent['id']}/active",
+            headers={"X-CSRF-Token": admin_login.json()["csrf_token"]},
+            json={"active": False},
+        )
+        assert response.status_code == 200
+        assert response.json()["active"] == 0
+
+        assert agent_client.get("/api/tickets").status_code == 401
+        session = agent_client.get("/api/session")
+        assert session.status_code == 200
+        assert session.json()["authenticated"] is False
