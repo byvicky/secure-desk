@@ -81,3 +81,19 @@ def test_invalid_login_does_not_open_dashboard(page: Page):
     page.locator("#login-form button").click()
     expect(page.locator("#login-message")).to_contain_text("Usuário ou senha incorretos.")
     expect(page.locator("#ticket-form")).to_be_hidden()
+
+
+
+@pytest.mark.ui
+def test_ticket_text_is_rendered_without_executing_html(page: Page):
+    login(page)
+    xss_title = '<img src=x onerror="alert(1)">'
+    page.locator('[name="requester"]').fill("Teste XSS")
+    page.locator('[name="title"]').fill(xss_title)
+    page.locator('[name="description"]').fill(
+        "Descrição usada para validar a renderização segura de texto."
+    )
+    page.locator("#ticket-form button.primary").click()
+    expect(page.locator("#form-message")).to_contain_text("registrada", timeout=10_000)
+    expect(page.locator(".ticket-title").filter(has_text=xss_title)).to_be_visible()
+    assert page.locator(".ticket-title img").count() == 0
