@@ -16,6 +16,7 @@ _PASSWORD_ITERATIONS = 310_000
 _PATTERNS = [
     (re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"), "[EMAIL REDIGIDO]"),
     (re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"), "[CPF REDIGIDO]"),
+    (re.compile(r"(?<!\d)\d{11}(?!\d)"), "[CPF REDIGIDO]"),
     (re.compile(r"(?<!\d)(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-. ]?\d{4}(?!\d)"), "[TELEFONE REDIGIDO]"),
 ]
 
