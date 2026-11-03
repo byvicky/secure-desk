@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SecureDesk local data and migration backups
+data/*.db*
+*.pre-pii-redaction.bak
