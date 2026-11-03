@@ -28,6 +28,7 @@ from securedesk.schemas import (
 from securedesk.security import (
     RateLimiter,
     get_current_user,
+    rate_limit_bucket,
     hash_password,
     redact_sensitive_data,
     require_admin,
@@ -182,7 +183,7 @@ async def security_headers(request: Request, call_next):
     request_id = str(uuid.uuid4())
     client = request.client.host if request.client else "unknown"
     try:
-        allowed = limiter.check(client)
+        allowed = limiter.check(rate_limit_bucket("request", client))
     except sqlite3.Error:
         logger.error("Rate limiter indisponível; requisição bloqueada.")
         return JSONResponse(status_code=503, content={"detail": "Controle de requisições temporariamente indisponível."},
@@ -233,7 +234,7 @@ def login(payload: LoginRequest, request: Request):
     if origin and origin != f"{request.url.scheme}://{request.url.netloc}":
         raise HTTPException(status_code=403, detail="Origem da solicitação inválida.")
     client_ip = request.client.host if request.client else "unknown"
-    attempt_key = f"{client_ip}:{payload.username.casefold()}"
+    attempt_key = rate_limit_bucket("login", client_ip, payload.username.casefold())
     try:
         allowed = login_limiter.check(attempt_key)
     except sqlite3.Error:
