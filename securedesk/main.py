@@ -199,11 +199,17 @@ def health():
 
 @app.get("/api/session")
 def session_status(request: Request):
-    user = request.session.get("user")
-    authenticated = bool(user and user.get("id") and user.get("role"))
-    if not settings.production and not settings.web_password and not settings.admin_password:
+    try:
+        user = get_current_user(request)
+    except HTTPException:
+        return {"authenticated": False, "user": None, "csrf_token": None}
+    if user["id"] == 0 and user["username"] == "local-dev":
         return {"authenticated": True, "user": {"username": "local-dev", "role": "admin"}}
-    return {"authenticated": authenticated, "user": user if authenticated else None, "csrf_token": request.session.get("csrf_token") if authenticated else None}
+    return {
+        "authenticated": True,
+        "user": {"username": user["username"], "role": user["role"]},
+        "csrf_token": request.session.get("csrf_token"),
+    }
 
 
 @app.post("/api/login")
